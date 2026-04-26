@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+
+<html class="light" lang="zh-CN"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>TalentScreen - 简历上传</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-bright": "#fbf8ff",
+                        "primary": "#00288e",
+                        "tertiary-fixed": "#ffdbce",
+                        "primary-fixed": "#dde1ff",
+                        "error": "#ba1a1a",
+                        "surface": "#fbf8ff",
+                        "surface-dim": "#dad9e3",
+                        "tertiary-container": "#872d00",
+                        "outline-variant": "#c4c5d5",
+                        "on-tertiary-fixed": "#380d00",
+                        "on-surface": "#1a1b22",
+                        "on-primary-fixed": "#001453",
+                        "inverse-surface": "#2f3037",
+                        "primary-container": "#1e40af",
+                        "on-tertiary-container": "#ffa583",
+                        "on-secondary": "#ffffff",
+                        "on-primary-container": "#a8b8ff",
+                        "on-surface-variant": "#444653",
+                        "surface-container-highest": "#e3e1eb",
+                        "inverse-primary": "#b8c4ff",
+                        "on-secondary-container": "#00714d",
+                        "surface-variant": "#e3e1eb",
+                        "surface-tint": "#3755c3",
+                        "primary-fixed-dim": "#b8c4ff",
+                        "outline": "#757684",
+                        "on-secondary-fixed": "#002113",
+                        "on-error-container": "#93000a",
+                        "secondary-fixed-dim": "#4edea3",
+                        "tertiary-fixed-dim": "#ffb59a",
+                        "on-error": "#ffffff",
+                        "secondary-container": "#6cf8bb",
+                        "secondary-fixed": "#6ffbbe",
+                        "background": "#fbf8ff",
+                        "surface-container": "#eeedf7",
+                        "error-container": "#ffdad6",
+                        "on-background": "#1a1b22",
+                        "inverse-on-surface": "#f1f0fa",
+                        "on-primary": "#ffffff",
+                        "surface-container-lowest": "#ffffff",
+                        "secondary": "#006c49",
+                        "surface-container-low": "#f4f2fc",
+                        "on-primary-fixed-variant": "#173bab",
+                        "on-secondary-fixed-variant": "#005236",
+                        "on-tertiary-fixed-variant": "#802a00",
+                        "surface-container-high": "#e8e7f1",
+                        "tertiary": "#611e00",
+                        "on-tertiary": "#ffffff"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "sm": "12px",
+                        "xl": "64px",
+                        "base": "8px",
+                        "container-max": "1440px",
+                        "gutter": "24px",
+                        "xs": "4px",
+                        "md": "24px",
+                        "lg": "40px"
+                    },
+                    "fontFamily": {
+                        "body-md": ["Inter"],
+                        "body-sm": ["Inter"],
+                        "h2": ["Inter"],
+                        "h3": ["Inter"],
+                        "data-tabular": ["Inter"],
+                        "label-caps": ["Inter"],
+                        "h1": ["Inter"]
+                    },
+                    "fontSize": {
+                        "body-md": ["16px", {"lineHeight": "1.5", "letterSpacing": "0em", "fontWeight": "400"}],
+                        "body-sm": ["14px", {"lineHeight": "1.5", "letterSpacing": "0em", "fontWeight": "400"}],
+                        "h2": ["24px", {"lineHeight": "1.3", "letterSpacing": "-0.01em", "fontWeight": "600"}],
+                        "h3": ["18px", {"lineHeight": "1.4", "letterSpacing": "0em", "fontWeight": "600"}],
+                        "data-tabular": ["14px", {"lineHeight": "1.2", "letterSpacing": "0em", "fontWeight": "400"}],
+                        "label-caps": ["12px", {"lineHeight": "1.2", "letterSpacing": "0.05em", "fontWeight": "600"}],
+                        "h1": ["32px", {"lineHeight": "1.2", "letterSpacing": "-0.02em", "fontWeight": "700"}]
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #F8FAFC;
+        }
+    </style>
+</head>
+<body class="font-body-md text-on-surface">
+<aside class="h-screen w-64 border-r fixed left-0 top-0 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex flex-col h-full p-4 space-y-2 z-50">
+<div class="mb-8 px-2">
+<h1 class="text-lg font-black text-blue-900 dark:text-blue-200">HR Talent</h1>
+<p class="text-xs text-slate-500 uppercase tracking-widest font-semibold">招聘套件</p>
+</div>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:translate-x-1 transition-transform duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-inter text-sm font-medium">控制面板</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-300 rounded-lg cursor-pointer" href="#">
+<span class="material-symbols-outlined">cloud_upload</span>
+<span class="font-inter text-sm font-medium">简历上传</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:translate-x-1 transition-transform duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined">pageview</span>
+<span class="font-inter text-sm font-medium">搜索筛选</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:translate-x-1 transition-transform duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined">groups</span>
+<span class="font-inter text-sm font-medium">候选人结果</span>
+</a>
+</nav>
+<div class="pt-4 border-t border-slate-200 dark:border-slate-800 space-y-1">
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:translate-x-1 transition-transform duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined">contact_support</span>
+<span class="font-inter text-sm font-medium">帮助中心</span>
+</a>
+<a class="flex items-center gap-3 px-3 py-2 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg hover:translate-x-1 transition-transform duration-200 cursor-pointer" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-inter text-sm font-medium">退出登录</span>
+</a>
+</div>
+</aside>
+<div class="ml-64 min-h-screen flex flex-col">
+<header class="bg-white dark:bg-slate-900 shadow-sm dark:shadow-none flex justify-between items-center px-6 h-16 w-full sticky top-0 z-40 border-b border-slate-200 dark:border-slate-800">
+<div class="flex items-center gap-4">
+<span class="text-xl font-bold tracking-tight text-blue-800 dark:text-blue-400">TalentScreen</span>
+<div class="h-6 w-[1px] bg-slate-200 mx-2"></div>
+<h2 class="font-h3 text-h3 text-on-surface">简历上传</h2>
+</div>
+<div class="flex items-center gap-4">
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 material-symbols-outlined text-slate-400 text-lg">search</span>
+<input class="pl-10 pr-4 py-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-primary outline-none transition-all w-64" placeholder="搜索文件..." type="text"/>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 text-slate-600 hover:bg-slate-50 rounded-full transition-colors active:opacity-80">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-50 rounded-full transition-colors active:opacity-80">
+<span class="material-symbols-outlined">help</span>
+</button>
+<button class="p-2 text-slate-600 hover:bg-slate-50 rounded-full transition-colors active:opacity-80">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+<img alt="HR 经理头像" class="w-8 h-8 rounded-full border border-slate-200 object-cover" data-alt="professional headshot of a middle-aged male HR executive in a tailored suit with a confident smile" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBE0Sf7cFZgm4GH1OnQZovNisbpy47ZAHoTNIHQWpwz7S21pd4l2xJoKlVDv8BiQzLi0x1xOrGWppkTAmfUXOJF6HxECk58K-XOnIqzIitlBU6eYGp62G8XpMtGmKN59dpnfopk9hlcgqX4BNoGT42L6eOOVF6Qbe-0EnU2q0j49ObBiuGADoOulLxYoh-f8pcb_DCmWXLk_OxbCQWYvRMwfGXlSofpp2lzMrIA2lpbtKdv-mRuy8ZZ9FhBkX5srQjai2sSbh9Ch8Q"/>
+</div>
+</header>
+<main class="p-lg flex-1 overflow-y-auto">
+<div class="max-w-6xl mx-auto space-y-gutter">
+<section class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<div class="lg:col-span-2 space-y-gutter">
+<div class="bg-white p-lg rounded-xl shadow-sm border border-slate-100">
+<div class="flex items-center justify-between mb-md">
+<div>
+<h3 class="font-h2 text-h2 text-on-surface">上传文档</h3>
+<p class="font-body-sm text-on-surface-variant mt-1">将简历添加到解析队列。支持 PDF, DOCX, 和 RTF 格式。</p>
+</div>
+<div class="bg-primary-fixed text-on-primary-fixed px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">
+                                    队列: 3 个文件
+                                </div>
+</div>
+<div class="relative group cursor-pointer">
+<div class="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity rounded-xl pointer-events-none"></div>
+<div class="border-2 border-dashed border-slate-300 group-hover:border-primary transition-colors rounded-xl p-xl flex flex-col items-center justify-center text-center space-y-4">
+<div class="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center text-primary group-hover:scale-110 transition-transform">
+<span class="material-symbols-outlined text-4xl">cloud_upload</span>
+</div>
+<div>
+<p class="font-h3 text-h3">点击上传或将文件拖拽至此</p>
+<p class="font-body-sm text-on-surface-variant">单个文件最大限制: 10MB</p>
+</div>
+<button class="bg-primary text-on-primary px-6 py-2.5 rounded-lg font-semibold hover:bg-primary-container transition-colors shadow-sm">
+                                        选择文件
+                                    </button>
+</div>
+</div>
+</div>
+<div class="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
+<div class="px-md py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+<h4 class="font-label-caps text-label-caps text-on-surface-variant">上传进度</h4>
+<button class="text-primary font-semibold text-sm hover:underline">清除已成功</button>
+</div>
+<div class="divide-y divide-slate-100">
+<div class="p-md hover:bg-slate-50 transition-colors flex items-center gap-4">
+<div class="w-10 h-10 bg-blue-100 text-blue-700 flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined">description</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between mb-1">
+<span class="font-medium text-sm text-on-surface truncate">Robert_Frost_CV_2024.pdf</span>
+<span class="text-xs font-semibold text-primary">75%</span>
+</div>
+<div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-3/4 rounded-full"></div>
+</div>
+<div class="mt-2 flex items-center gap-4 text-xs text-on-surface-variant">
+<span>2.4 MB</span>
+<span class="flex items-center gap-1"><span class="w-2 h-2 bg-blue-500 rounded-full"></span> 解析中</span>
+</div>
+</div>
+<button class="text-slate-400 hover:text-error transition-colors">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<div class="p-md hover:bg-slate-50 transition-colors flex items-center gap-4">
+<div class="w-10 h-10 bg-emerald-100 text-emerald-700 flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined">check_circle</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between">
+<span class="font-medium text-sm text-on-surface truncate">Sarah_Chen_Engineering.docx</span>
+<span class="text-xs font-semibold text-emerald-600">成功</span>
+</div>
+<div class="mt-2 flex items-center gap-4 text-xs text-on-surface-variant">
+<span>1.8 MB</span>
+<span>2 分钟前上传</span>
+</div>
+</div>
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">visibility</span>
+</button>
+</div>
+<div class="p-md hover:bg-slate-50 transition-colors flex items-center gap-4 opacity-75">
+<div class="w-10 h-10 bg-red-100 text-red-700 flex items-center justify-center rounded-lg">
+<span class="material-symbols-outlined">error</span>
+</div>
+<div class="flex-1 min-w-0">
+<div class="flex justify-between">
+<span class="font-medium text-sm text-on-surface truncate">Damaged_Portfolio.pdf</span>
+<span class="text-xs font-semibold text-error">错误</span>
+</div>
+<p class="text-xs text-error mt-1">文件格式无法识别或已损坏。</p>
+</div>
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">replay</span>
+</button>
+</div>
+</div>
+</div>
+</div>
+<div class="space-y-gutter">
+<div class="bg-white p-md rounded-xl shadow-sm border border-slate-100">
+<h4 class="font-h3 text-h3 mb-4">解析配置</h4>
+<div class="space-y-4">
+<div class="space-y-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant">目标职位类别</label>
+<select class="w-full border-slate-200 rounded-lg text-sm focus:ring-primary">
+<option>工程与产品</option>
+<option>销售与市场</option>
+<option>运营与人事</option>
+</select>
+</div>
+<div class="space-y-2">
+<label class="font-label-caps text-label-caps text-on-surface-variant">AI 解析强度</label>
+<div class="flex gap-2">
+<button class="flex-1 py-2 text-xs font-semibold rounded-lg bg-blue-50 text-primary border border-blue-200">标准</button>
+<button class="flex-1 py-2 text-xs font-semibold rounded-lg bg-white text-slate-500 border border-slate-200 hover:bg-slate-50">深度扫描</button>
+</div>
+</div>
+<div class="pt-4">
+<button class="w-full bg-primary text-on-primary py-3 rounded-lg font-bold flex items-center justify-center gap-2 hover:bg-primary-container transition-all shadow-md active:scale-95">
+<span class="material-symbols-outlined">play_arrow</span>
+                                        开始解析
+                                    </button>
+</div>
+</div>
+</div>
+<div class="bg-blue-900 text-white p-md rounded-xl shadow-lg relative overflow-hidden group">
+<div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full blur-3xl group-hover:scale-150 transition-transform"></div>
+<div class="relative z-10">
+<span class="material-symbols-outlined mb-2 text-3xl">auto_awesome</span>
+<h4 class="font-h3 text-h3 mb-2">智能排名</h4>
+<p class="text-sm text-blue-100 leading-relaxed">我们的 AI 将根据提取的技能和经验，自动为这些候选人与您的开放职位进行匹配排名。</p>
+<a class="mt-4 inline-flex items-center gap-1 text-xs font-bold uppercase tracking-widest hover:gap-2 transition-all" href="#">
+                                    了解更多 <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+</div>
+</div>
+<div class="bg-white p-md rounded-xl shadow-sm border border-slate-100">
+<h4 class="font-label-caps text-label-caps text-on-surface-variant mb-4">系统统计</h4>
+<div class="space-y-4">
+<div class="flex justify-between items-center">
+<span class="text-sm text-on-surface-variant">每月额度</span>
+<span class="text-sm font-bold text-on-surface">840 / 1,000</span>
+</div>
+<div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+<div class="bg-emerald-500 h-full w-[84%]"></div>
+</div>
+<p class="text-[11px] text-slate-400 italic">额度将在 12 天后重置。需要更多？</p>
+</div>
+</div>
+</div>
+</section>
+<div class="bg-white rounded-xl shadow-sm border border-slate-100 p-md">
+<div class="flex items-center justify-between mb-4">
+<h4 class="font-h3 text-h3">近期活动</h4>
+<button class="text-sm text-primary font-medium">查看历史</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<div class="flex items-center gap-3 p-3 rounded-lg border border-slate-50 hover:border-slate-200 transition-all">
+<img class="w-10 h-10 rounded-lg object-cover" data-alt="portrait of a professional black woman in creative office setting looking at camera with friendly expression" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBA1p5SW-UCrYsxjsprZ82eJdoiDqwTCmJCpFOteNRfDkzkzMlhctd56w11kuw2TrbyS1Nbt5N9Uzw7VubrC0KP9QuWCThGAc1XegL5Ol0HTZmlqjwT9KRKBqya6i93awjpk6MAuOUhO6I9QU400z3kXkW3P7kbuKSg9AJHZu5J4A5pgq6jA4OlZ3HuHLek7210lzpTo9tptsT9k4c2ZkJOis1QuA4ejVKmuID7VxjGmbDJkWYKEcLzEZs5GvYumwHkO4xQSoAg9VQ"/>
+<div>
+<p class="text-xs font-bold text-on-surface truncate">Marcus Aurelius</p>
+<span class="text-[11px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-medium">9.2 分</span>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg border border-slate-50 hover:border-slate-200 transition-all">
+<img class="w-10 h-10 rounded-lg object-cover" data-alt="portrait of a young woman with glasses in a modern coworking space background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAWb35X_pvsJn8s2eVKCKpi6aEDnVAGt7Gx8RuHWw-YCY2VAjaJqbKSH9G_JYQEEXeMM8topD2Dk-REUB25dUoocCcjfzuwc1WJGYUvf9ucu0dJnr6TiumKf95SPB0jhVaVhGY6RVSteZTc2cSqNN7Ga1yvcSOSp-dCc0IG9m1vU4D4PdyvSTycFqzowaPW4XJSEWaW09bGtTFb_z6fAnwV-G_Ur6tdVYgx-YXzIybpgQEpZohIWhZLzu_rIBZUStFqyPOiysZbJhc"/>
+<div>
+<p class="text-xs font-bold text-on-surface truncate">Linda Sterling</p>
+<span class="text-[11px] px-1.5 py-0.5 bg-emerald-100 text-emerald-800 rounded font-medium">8.8 分</span>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg border border-slate-50 hover:border-slate-200 transition-all">
+<img class="w-10 h-10 rounded-lg object-cover" data-alt="headshot of a man with short hair and a beard against a neutral studio background" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAD_sM09beyiGYJhJ2e55zt2SdbNF2SQBJh_yFr1p8cPPH9XXLb2sxcfiv-B5QZ7ixClg1K9tMkxLCqXyIxL_kliXXvJUY5sdLx484dmruMYo0ND4s4c6apV3MNyF0bqRFotL4nfuqWjhO0Wj1yALvlg_fJ57vtfSf1LAZYRdk-u5M-cj2z8RwD6ig1FY83Out32pj_EZ-ZsGPZ5tnTk3-mshr5dyGQZKfWGfjDc1W3OixV8BJOr_scQ5lucbwZw0o-Ml3PDpU2Su0"/>
+<div>
+<p class="text-xs font-bold text-on-surface truncate">James Watson</p>
+<span class="text-[11px] px-1.5 py-0.5 bg-primary-fixed text-primary rounded font-medium">7.4 分</span>
+</div>
+</div>
+<div class="flex items-center gap-3 p-3 rounded-lg border border-slate-50 hover:border-slate-200 transition-all">
+<img class="w-10 h-10 rounded-lg object-cover" data-alt="close up profile of a young woman with high fashion look and minimalist aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuANra6lIe-xowl1Niqi4pNE5Kpboy3XjxhQVatbCIz46ER1uXXxt0fShSbvBN8QcxMTYu6SqVBXVdz_AcD8fS_OOYOpq_BB9cDRP7K4ARhowOvlq67VYsggiCaTZmj6ZdmmmvRsKLR0Hv1iyChAe9cCbTfnOX1uOdxTg92Ig0aEWVbwQ5q3Z9LNypr97k8n5vSUxGYMwPyEYL0lB7IXPPjJkJhfolQFQPvLET92xhUBTDYXSOKXsSkl_DGzjZywMaAB64-KuceneMM"/>
+<div>
+<p class="text-xs font-bold text-on-surface truncate">Sophie Muller</p>
+<span class="text-[11px] px-1.5 py-0.5 bg-primary-fixed text-primary rounded font-medium">8.1 分</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+</div>
+</body></html>

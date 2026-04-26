@@ -1,0 +1,19 @@
+张三
+前端工程师
+
+个人简介
+拥有5年前端开发经验，精通React和TypeScript。
+
+工作经历
+2020-2024: ABC科技公司 - 高级前端工程师
+- 使用React和TypeScript开发企业级应用
+- 负责前端架构设计和性能优化
+
+技能
+- 前端框架: React, Vue, Angular
+- 编程语言: TypeScript, JavaScript, HTML/CSS
+- 后端技术: Node.js, Express
+- 其他: Git, Webpack, Docker
+
+教育背景
+2016-2020: 某某大学 - 计算机科学与技术 本科

@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #fbf8ff;
+  color: #111827;
+  font-family: Inter, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.material-symbols-outlined {
+  display: inline-block;
+  direction: ltr;
+  font-family: "Material Symbols Outlined";
+  font-size: 24px;
+  font-style: normal;
+  font-weight: normal;
+  letter-spacing: normal;
+  line-height: 1;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+}
+
+.analysis-table .ant-table-thead > tr > th,
+.analysis-table .ant-table-column-title,
+.analysis-table .ant-table-column-sorters {
+  white-space: nowrap;
+}
+
+.talent-upload-dragger .ant-upload-drag {
+  border: 0 !important;
+  background: transparent !important;
+}
+
+.talent-upload-dragger .ant-upload {
+  padding: 0 !important;
+}
+
+.candidate-result-table .ant-table-thead > tr > th {
+  background: #eeedf7 !important;
+  color: #444653 !important;
+  font-weight: 800 !important;
+  padding: 16px 24px !important;
+}
+
+.candidate-row-active > td {
+  background: rgba(219, 234, 254, 0.32) !important;
+}
+
+.candidate-row-active > td:first-child {
+  border-left: 4px solid #00288e !important;
+}
+
+.candidate-result-table .ant-table-tbody > tr > td {
+  padding: 18px 24px !important;
+}
+
+.candidate-result-table .ant-pagination {
+  margin: 16px 24px !important;
+}
+
+.candidate-export-button .ant-btn-primary,
+.candidate-export-button .ant-btn-primary:hover {
+  background: #00288e !important;
+  border-color: #00288e !important;
+  font-weight: 800;
+  height: 48px;
+}
+
+.ant-slider .ant-slider-track {
+  background: #00288e !important;
+}
+
+.ant-slider .ant-slider-handle::after {
+  box-shadow: 0 0 0 2px #00288e !important;
+}
