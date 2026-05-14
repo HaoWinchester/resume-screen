@@ -27,5 +27,43 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
     }
   }, [hasHydrated, isAuthenticated, logout, pathname, router]);
 
-  return <ConfigProvider locale={zhCN}>{children}</ConfigProvider>;
+  return (
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        token: {
+          colorPrimary: '#2563eb',
+          colorInfo: '#2563eb',
+          colorBgLayout: '#f5f7fb',
+          colorText: '#111827',
+          colorTextSecondary: '#64748b',
+          colorBorder: '#dbe3ef',
+          borderRadius: 8,
+          fontFamily: 'Inter, "PingFang SC", "Microsoft YaHei", sans-serif',
+          controlHeight: 36,
+        },
+        components: {
+          Button: {
+            borderRadius: 8,
+            fontWeight: 700,
+            controlHeight: 36,
+          },
+          Card: {
+            borderRadiusLG: 10,
+            paddingLG: 20,
+          },
+          Table: {
+            headerBg: '#f8fafc',
+            headerColor: '#334155',
+            rowHoverBg: '#f8fbff',
+          },
+          Tag: {
+            borderRadiusSM: 6,
+          },
+        },
+      }}
+    >
+      {children}
+    </ConfigProvider>
+  );
 }

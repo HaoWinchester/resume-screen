@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Avatar, Button, Dropdown, Input, Spin, message } from 'antd';
 import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
@@ -31,6 +31,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const { user, logout, isAuthenticated, hasHydrated } = useAuthStore();
+  const [pendingPath, setPendingPath] = useState<string | null>(null);
 
   useEffect(() => {
     if (hasHydrated && !isAuthenticated) {
@@ -38,7 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, [hasHydrated, isAuthenticated, router]);
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     { key: '/dashboard', href: '/dashboard', icon: 'dashboard', label: '控制面板', section: '总览' },
     { key: '/dashboard/workbench', href: '/dashboard/workbench', icon: 'view_kanban', label: '招聘工作台', section: '总览' },
     {
@@ -85,9 +86,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     { key: '/dashboard/talent-pool', href: '/dashboard/talent-pool', icon: 'database', label: '人才库', section: '沉淀' },
     { key: '/dashboard/jd-optimizer', href: '/dashboard/jd-optimizer', icon: 'auto_fix_high', label: 'JD 优化', section: '沉淀' },
     { key: '/dashboard/settings', href: '/dashboard/settings', icon: 'settings', label: '基础信息', section: '系统' },
-  ];
-  const flatMenuItems = menuItems.flatMap((item) => [item, ...(item.children || [])]);
-  const sortedFlatMenuItems = [...flatMenuItems].sort((a, b) => b.key.length - a.key.length);
+  ], []);
+  const flatMenuItems = useMemo(
+    () => menuItems.flatMap((item) => [item, ...(item.children || [])]),
+    [menuItems]
+  );
+  const sortedFlatMenuItems = useMemo(
+    () => [...flatMenuItems].sort((a, b) => b.key.length - a.key.length),
+    [flatMenuItems]
+  );
+  const menuHrefs = useMemo(
+    () => Array.from(new Set(flatMenuItems.map((item) => item.href))),
+    [flatMenuItems]
+  );
 
   const activeKey = pathname?.startsWith('/dashboard/reports')
     ? '/dashboard/talent-pool'
@@ -110,6 +121,40 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     router.push('/login');
   };
 
+  useEffect(() => {
+    setPendingPath(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!hasHydrated || !isAuthenticated || typeof window === 'undefined') return;
+
+    const prefetchRoutes = () => {
+      menuHrefs.forEach((href) => router.prefetch(href));
+    };
+    const windowWithIdle = window as typeof window & {
+      requestIdleCallback?: (callback: () => void) => number;
+      cancelIdleCallback?: (id: number) => void;
+    };
+
+    if (windowWithIdle.requestIdleCallback) {
+      const idleId = windowWithIdle.requestIdleCallback(prefetchRoutes);
+      return () => windowWithIdle.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = window.setTimeout(prefetchRoutes, 400);
+    return () => window.clearTimeout(timeoutId);
+  }, [hasHydrated, isAuthenticated, menuHrefs, router]);
+
+  const handleMenuIntent = (href: string) => {
+    router.prefetch(href);
+  };
+
+  const handleMenuClick = (href: string) => {
+    if (href !== pathname) {
+      setPendingPath(href);
+    }
+  };
+
   const userMenuItems = [
     { key: 'profile', icon: <UserOutlined />, label: user?.name || '个人信息' },
     { type: 'divider' as const },
@@ -118,20 +163,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   if (!hasHydrated || !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-[#fbf8ff]">
+      <div className="flex min-h-screen items-center justify-center bg-[#f5f7fb]">
         <Spin size="large" />
       </div>
     );
   }
 
   const sideBrand = (
-    <Link href="/dashboard" className="mb-8 mt-2 flex h-12 shrink-0 items-center gap-3 px-2">
-      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1e40af] text-white shadow-sm">
+    <Link
+      href="/dashboard"
+      prefetch
+      onMouseEnter={() => handleMenuIntent('/dashboard')}
+      onClick={() => handleMenuClick('/dashboard')}
+      className="mb-5 flex h-12 shrink-0 items-center gap-3 rounded-lg px-2 transition hover:bg-slate-50"
+    >
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#174ea6] text-white shadow-sm shadow-blue-900/10">
         <MaterialIcon name="analytics" fill />
       </span>
       <span className="min-w-0">
-        <span className="block text-lg font-black leading-none text-blue-900">HR Talent</span>
-        <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">招聘套件</span>
+        <span className="block text-base font-black leading-none text-slate-950">HR Talent</span>
+        <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-slate-400">Recruit Suite</span>
       </span>
     </Link>
   );
@@ -142,25 +193,30 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
         {Array.from(new Set(menuItems.map((item) => item.section))).map((section) => (
           <div key={section} className="space-y-1">
-            <div className="px-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{section}</div>
+            <div className="px-3 text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">{section}</div>
             {menuItems
               .filter((item) => item.section === section)
               .map((item) => {
                 const isActive = activeParentKey === item.key;
+                const isPending = pendingPath === item.href;
                 const isExpanded = isActive && item.children?.length;
                 return (
                   <div key={item.key}>
                     <Link
                       href={item.href}
+                      prefetch
+                      onMouseEnter={() => handleMenuIntent(item.href)}
+                      onClick={() => handleMenuClick(item.href)}
                       className={[
-                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
-                        isActive
-                          ? 'bg-blue-50 text-[#00288e]'
-                          : 'text-slate-600 hover:translate-x-1 hover:bg-slate-100 hover:text-[#00288e]',
+                        'flex h-10 items-center gap-3 rounded-md border-l-2 px-3 text-sm font-semibold transition-colors',
+                        isActive || isPending
+                          ? 'border-[#2563eb] bg-[#eef4ff] text-[#174ea6]'
+                          : 'border-transparent text-slate-600 hover:border-slate-300 hover:bg-slate-100 hover:text-slate-950',
                       ].join(' ')}
                     >
-                      <MaterialIcon name={item.icon} className="text-[24px]" fill={isActive} />
+                      <MaterialIcon name={item.icon} className="text-[22px]" fill={isActive || isPending} />
                       <span className="flex-1">{item.label}</span>
+                      {isPending ? <Spin size="small" /> : null}
                       {item.children?.length ? (
                         <MaterialIcon
                           name={isExpanded ? 'expand_less' : 'expand_more'}
@@ -169,22 +225,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       ) : null}
                     </Link>
                     {isExpanded ? (
-                      <div className="mt-1 space-y-1 rounded-xl bg-white/70 p-2 shadow-inner shadow-slate-200/60">
+                      <div className="mt-1 space-y-1 rounded-lg bg-slate-50 p-1.5">
                         {item.children?.map((child) => {
                           const isChildActive = activeKey === child.key;
+                          const isChildPending = pendingPath === child.href;
                           return (
                             <Link
                               key={child.key}
                               href={child.href}
+                              prefetch
+                              onMouseEnter={() => handleMenuIntent(child.href)}
+                              onClick={() => handleMenuClick(child.href)}
                               className={[
-                                'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all',
-                                isChildActive
-                                  ? 'bg-[#00288e] text-white shadow-sm'
-                                  : 'text-slate-500 hover:bg-blue-50 hover:text-[#00288e]',
+                                'flex h-9 items-center gap-2 rounded-md px-2 text-xs font-semibold transition-colors',
+                                isChildActive || isChildPending
+                                  ? 'bg-white text-[#174ea6] shadow-sm ring-1 ring-blue-100'
+                                  : 'text-slate-500 hover:bg-white hover:text-slate-950',
                               ].join(' ')}
                             >
-                              <MaterialIcon name={child.icon} className="text-[17px]" fill={isChildActive} />
+                              <MaterialIcon name={child.icon} className="text-[17px]" fill={isChildActive || isChildPending} />
                               <span className="truncate">{child.label}</span>
+                              {isChildPending ? <Spin size="small" className="ml-auto" /> : null}
                             </Link>
                           );
                         })}
@@ -196,11 +257,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         ))}
       </nav>
-      <div className="mt-4 shrink-0 space-y-1 border-t border-slate-200 pt-4">
+      <div className="mt-4 shrink-0 space-y-1 border-t border-slate-200 pt-3">
         <Button
           type="text"
           icon={<MaterialIcon name="contact_support" />}
-          className="flex h-11 w-full items-center justify-start rounded-lg px-3 text-slate-600 hover:bg-slate-100"
+          className="flex h-10 w-full items-center justify-start rounded-md px-3 text-slate-600 hover:bg-slate-100"
           onClick={() => message.info('技术支持已收到您的请求，我们会尽快协助。')}
         >
           技术支持
@@ -209,7 +270,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           type="text"
           danger
           icon={<MaterialIcon name="logout" />}
-          className="flex h-11 w-full items-center justify-start rounded-lg px-3"
+          className="flex h-10 w-full items-center justify-start rounded-md px-3"
           onClick={handleLogout}
         >
           退出登录
@@ -222,7 +283,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex items-center gap-4">
       <div className="relative hidden lg:block">
         <Input
-          className="h-10 w-64 rounded-lg bg-slate-100"
+          className="h-9 w-64 rounded-md bg-slate-50"
           prefix={<MaterialIcon name="search" className="text-slate-400" />}
           placeholder={isUpload ? '搜索文件...' : '搜索候选人...'}
           onPressEnter={(event) => {
@@ -243,25 +304,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   return (
-    <div className="min-h-screen bg-[#fbf8ff] font-['Inter'] text-[#1a1b22]">
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-64 flex-col overflow-hidden border-r border-slate-200 bg-slate-50 p-4 lg:flex">
+    <div className="min-h-screen bg-[#f5f7fb] font-['Inter'] text-slate-950">
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-[248px] flex-col overflow-hidden border-r border-slate-200 bg-white p-3 lg:flex">
         {sideNav}
       </aside>
-      <div className="min-h-screen lg:ml-64">
-        <header className="sticky top-0 z-40 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm">
+      <div className="min-h-screen lg:ml-[248px]">
+        <header className="sticky top-0 z-40 flex h-14 items-center justify-between border-b border-slate-200 bg-white/95 px-5 backdrop-blur">
+          {pendingPath && pendingPath !== pathname ? (
+            <div className="absolute bottom-0 left-0 h-0.5 w-full overflow-hidden bg-blue-50">
+              <span className="block h-full w-1/3 animate-[talent-route-progress_1.1s_ease-in-out_infinite] bg-[#2563eb]" />
+            </div>
+          ) : null}
           <div className="flex min-w-0 items-center gap-4">
-            <Link href="/dashboard" className="text-xl font-bold tracking-tight text-blue-800">
+            <Link
+              href="/dashboard"
+              prefetch
+              onMouseEnter={() => handleMenuIntent('/dashboard')}
+              onClick={() => handleMenuClick('/dashboard')}
+              className="text-lg font-black tracking-tight text-slate-950"
+            >
               TalentScreen
             </Link>
             <span className="hidden h-6 w-px bg-slate-200 md:block" />
             <div className="hidden items-center gap-2 md:flex">
-              <MaterialIcon name={activeMenuItem.icon} className="text-[22px] text-[#00288e]" fill />
-              <h2 className="text-lg font-bold text-[#1a1b22]">{activeMenuItem.label}</h2>
+              <MaterialIcon name={activeMenuItem.icon} className="text-[21px] text-[#174ea6]" fill />
+              <h2 className="text-base font-bold text-slate-800">{activeMenuItem.label}</h2>
             </div>
           </div>
           {headerActions}
         </header>
-        <main className={isUpload ? 'mx-auto max-w-6xl p-6 lg:p-10' : 'mx-auto max-w-[1440px] p-6 lg:p-10'}>
+        <main className={isUpload ? 'mx-auto max-w-6xl p-5 lg:p-8' : 'mx-auto max-w-[1440px] p-5 lg:p-8'}>
           {children}
         </main>
         <HrAiGuide />
