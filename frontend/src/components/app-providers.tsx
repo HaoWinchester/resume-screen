@@ -10,7 +10,7 @@ import { useAuthStore } from '@/lib/auth';
 export function AppProviders({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { isAuthenticated, hasHydrated } = useAuthStore();
+  const { isAuthenticated, hasHydrated, logout } = useAuthStore();
 
   useEffect(() => {
     if (!hasHydrated) {
@@ -19,11 +19,13 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
 
     const publicRoutes = ['/login', '/register'];
     const isPublicRoute = publicRoutes.some((route) => pathname?.startsWith(route));
+    const hasToken = typeof window !== 'undefined' && Boolean(window.localStorage.getItem('access_token'));
 
-    if (!isPublicRoute && !isAuthenticated) {
+    if (!isPublicRoute && (!isAuthenticated || !hasToken)) {
+      logout();
       router.replace('/login');
     }
-  }, [hasHydrated, isAuthenticated, pathname, router]);
+  }, [hasHydrated, isAuthenticated, logout, pathname, router]);
 
   return <ConfigProvider locale={zhCN}>{children}</ConfigProvider>;
 }

@@ -105,8 +105,8 @@ test.describe('Job List Page', () => {
   test('status tabs filter the job list', async ({ page }) => {
     const token = await getAuthToken();
     // Create a draft and an active job
-    await createJobViaAPI(token, `过滤测试_草稿_${Date.now()}`, 'draft');
-    await createJobViaAPI(token, `过滤测试_活跃_${Date.now()}`, 'active');
+    await createJobViaAPI(token, `增长运营经理（草稿筛选验证）-${Date.now()}`, 'draft');
+    await createJobViaAPI(token, `增长运营经理（筛选验证）-${Date.now()}`, 'active');
 
     await loginAsAdmin(page);
     await page.waitForTimeout(3000);
@@ -205,7 +205,7 @@ test.describe('Create Job Page', () => {
 test.describe('Job Actions (API-created jobs)', () => {
   test('activate a draft job', async ({ page }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `激活测试_${Date.now()}`, 'draft');
+    const job = await createJobViaAPI(token, `后端开发工程师（激活验证）-${Date.now()}`, 'draft');
 
     await loginAsAdmin(page);
     await page.waitForTimeout(3000);
@@ -231,7 +231,7 @@ test.describe('Job Actions (API-created jobs)', () => {
 
   test('close an active job', async ({ page }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `关闭测试_${Date.now()}`, 'active');
+    const job = await createJobViaAPI(token, `后端开发工程师（关闭验证）-${Date.now()}`, 'active');
 
     await loginAsAdmin(page);
     await page.waitForTimeout(3000);
@@ -262,7 +262,7 @@ test.describe('Job Actions (API-created jobs)', () => {
 
   test('copy an existing job', async ({ page }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `复制测试_${Date.now()}`, 'draft');
+    const job = await createJobViaAPI(token, `后端开发工程师（复制验证）-${Date.now()}`, 'draft');
 
     await loginAsAdmin(page);
     await page.waitForTimeout(3000);
@@ -289,7 +289,7 @@ test.describe('Job Actions (API-created jobs)', () => {
 
   test('delete a draft job', async ({ page }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `删除测试_${Date.now()}`, 'draft');
+    const job = await createJobViaAPI(token, `后端开发工程师（删除验证）-${Date.now()}`, 'draft');
 
     await loginAsAdmin(page);
     await page.waitForTimeout(3000);
@@ -324,7 +324,7 @@ test.describe('Job Actions (API-created jobs)', () => {
 test.describe('Edit Job Flow', () => {
   test('edit page loads with existing job data', async ({ page }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `编辑测试_${Date.now()}`, 'draft');
+    const job = await createJobViaAPI(token, `后端开发工程师（编辑验证）-${Date.now()}`, 'draft');
 
     await loginAsAdmin(page);
     await page.waitForTimeout(3000);

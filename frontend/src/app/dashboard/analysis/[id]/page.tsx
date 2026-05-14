@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Card,
@@ -38,6 +38,8 @@ import {
   Legend,
 } from 'recharts';
 import { fetchAnalysisDetail } from '@/lib/api/analysis';
+import { AgentTeamPanel } from '@/components/agent-team-panel';
+import { formatEducationLevel } from '@/lib/formatters/education';
 import type { AnalysisDetail, DimensionType } from '@/types/analysis';
 import type { WorkExperience } from '@/types/resume';
 
@@ -62,11 +64,7 @@ export default function AnalysisDetailPage() {
   const [loading, setLoading] = useState(true);
   const [analysis, setAnalysis] = useState<AnalysisDetail | null>(null);
 
-  useEffect(() => {
-    loadAnalysis();
-  }, [analysisId]);
-
-  const loadAnalysis = async () => {
+  const loadAnalysis = useCallback(async () => {
     setLoading(true);
     try {
       const data = await fetchAnalysisDetail(analysisId);
@@ -77,7 +75,11 @@ export default function AnalysisDetailPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [analysisId, router]);
+
+  useEffect(() => {
+    void loadAnalysis();
+  }, [loadAnalysis]);
 
   const handlePrint = () => {
     window.print();
@@ -141,6 +143,42 @@ export default function AnalysisDetailPage() {
     if (!analysis) return null;
     const dimScore = analysis.dimension_scores.find((d) => d.dimension === dimension);
     return dimScore?.match_details || null;
+  };
+
+  const toTextList = (value: unknown) =>
+    Array.isArray(value)
+      ? value
+          .map((item) => String(item || '').trim())
+          .filter(Boolean)
+      : [];
+
+  const renderDetailList = (
+    title: string,
+    values: unknown,
+    tone: 'blue' | 'green' | 'amber' | 'red' = 'blue'
+  ) => {
+    const items = toTextList(values);
+    if (items.length === 0) return null;
+
+    const toneClass = {
+      blue: 'border-blue-100 bg-blue-50 text-blue-700',
+      green: 'border-green-100 bg-green-50 text-green-700',
+      amber: 'border-amber-100 bg-amber-50 text-amber-700',
+      red: 'border-red-100 bg-red-50 text-red-700',
+    }[tone];
+
+    return (
+      <div className={`rounded-lg border p-3 ${toneClass}`}>
+        <Text strong className="text-xs">
+          {title}
+        </Text>
+        <ul className="mt-2 space-y-1 pl-4 text-xs leading-5">
+          {items.slice(0, 4).map((item) => (
+            <li key={`${title}-${item}`}>{item}</li>
+          ))}
+        </ul>
+      </div>
+    );
   };
 
   const hasValue = (value: unknown) =>
@@ -549,6 +587,10 @@ export default function AnalysisDetailPage() {
         </div>
       </Card>
 
+      <div className="no-print">
+        <AgentTeamPanel analysisId={analysis.id} />
+      </div>
+
       <Row gutter={16} className="mb-6">
         {/* 左侧：简历内容 */}
         <Col span={12}>
@@ -747,7 +789,7 @@ export default function AnalysisDetailPage() {
                     {displayValue(dim.analysis_text, '暂无该维度的详细说明')}
                   </Paragraph>
                   {matchDetails && (
-                    <div className="bg-gray-50 p-3 rounded">
+                    <div className="space-y-3 rounded bg-gray-50 p-3">
                       {matchDetails.matched_skills &&
                         matchDetails.matched_skills.length > 0 && (
                           <div className="mb-1">
@@ -793,6 +835,13 @@ export default function AnalysisDetailPage() {
                             </div>
                           </div>
                         )}
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {renderDetailList('岗位关注点', matchDetails.job_focus, 'blue')}
+                        {renderDetailList('匹配证据', matchDetails.evidence, 'green')}
+                        {renderDetailList('风险与待验证', matchDetails.concerns, 'red')}
+                        {renderDetailList('面试追问', matchDetails.interview_questions, 'amber')}
+                        {renderDetailList('下一步建议', matchDetails.next_actions, 'blue')}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -825,7 +874,7 @@ export default function AnalysisDetailPage() {
             {analysis.job_requirement.criteria.min_experience_years} 年
           </Descriptions.Item>
           <Descriptions.Item label="学历要求">
-            {analysis.job_requirement.criteria.education || '不限'}
+            {formatEducationLevel(analysis.job_requirement.criteria.education)}
           </Descriptions.Item>
           <Descriptions.Item label="其他要求">
             {analysis.job_requirement.criteria.other_requirements || '-'}

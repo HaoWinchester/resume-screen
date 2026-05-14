@@ -6,7 +6,18 @@ export interface Company {
   id: string;
   name: string;
   industry: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
   created_at: string;
+}
+
+export interface UpdateCompanyRequest {
+  name: string;
+  industry?: string | null;
+  contact_name?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
 }
 
 // 团队成员

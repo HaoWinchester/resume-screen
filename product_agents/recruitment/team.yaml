@@ -1,0 +1,52 @@
+version: 1
+
+team:
+  name: recruitment-agent-team
+  display_name: 招聘流程 Agent Team
+  description: >
+    面向 ResumeAssistant 产品运行时的招聘业务多 Agent 团队。
+    该团队围绕一个候选人分析结果生成下一步处理建议、面试问题、
+    沟通草稿、风险提示和审计摘要。默认只输出建议，不自动改候选人状态。
+  entrypoint: ./orchestrator-agent.md
+  default_provider: zhipu
+  default_model: glm-4-flash
+  default_reasoning_effort: medium
+
+agents:
+  - name: orchestrator-agent
+    content: ./orchestrator-agent.md
+    model: glm-4-flash
+    reasoning_effort: medium
+    owns: 判断候选人处理目标、选择后续业务 agent、明确人工确认点
+
+  - name: candidate-review-agent
+    content: ./candidate-review-agent.md
+    model: glm-4-flash
+    reasoning_effort: medium
+    owns: 候选人匹配结论、优势短板、下一步建议
+
+  - name: interview-agent
+    content: ./interview-agent.md
+    model: glm-4-flash
+    reasoning_effort: medium
+    owns: 面试验证重点、面试问题、追问路径
+
+  - name: communication-agent
+    content: ./communication-agent.md
+    model: glm-4-flash
+    reasoning_effort: medium
+    owns: 候选人沟通草稿、HR 内部备注、人工确认提示
+
+  - name: audit-agent
+    content: ./audit-agent.md
+    model: glm-4-flash
+    reasoning_effort: medium
+    owns: 风险复核、人工审核点、最终建议摘要和审计记录
+
+handoffs:
+  candidate_next_step:
+    - orchestrator-agent
+    - candidate-review-agent
+    - interview-agent
+    - communication-agent
+    - audit-agent

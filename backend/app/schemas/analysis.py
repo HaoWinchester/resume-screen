@@ -15,6 +15,7 @@ class AnalysisListItem(BaseModel):
     id: uuid.UUID
     resume_id: uuid.UUID
     candidate_name: Optional[str]
+    candidate_email: Optional[str] = None
     overall_score: float
     recommendation: str
     recommendation_reason: Optional[str]

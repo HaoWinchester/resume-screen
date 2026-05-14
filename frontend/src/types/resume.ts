@@ -11,22 +11,43 @@ export interface Education {
   major: string | null;
   start_date: string | null;
   end_date: string | null;
+  description?: string | null;
 }
 
 // 工作经历
 export interface WorkExperience {
   company: string | null;
   position: string | null;
+  department?: string | null;
   start_date: string | null;
   end_date: string | null;
   description: string | null;
+  responsibilities?: string[];
+  achievements?: string[];
+  technologies?: string[];
 }
 
 // 项目经历
 export interface Project {
   name: string | null;
   role: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
   description: string | null;
+  responsibilities?: string[];
+  achievements?: string[];
+  technologies?: string[];
+}
+
+export interface Certificate {
+  name: string | null;
+  issuer: string | null;
+  date: string | null;
+}
+
+export interface LanguageAbility {
+  name: string | null;
+  level: string | null;
 }
 
 // 解析后的简历数据
@@ -36,28 +57,46 @@ export interface ParsedData {
   age: number | string | null;
   email: string | null;
   phone: string | null;
+  current_title?: string | null;
+  target_position?: string | null;
+  location?: string | null;
+  expected_salary?: string | null;
+  availability?: string | null;
+  years_of_experience?: number | string | null;
+  summary?: string | null;
   education: Education[];
   work_experience: WorkExperience[];
   skills: string[];
   projects: Project[];
+  certificates?: Certificate[];
+  languages?: LanguageAbility[];
+  awards?: string[];
+  self_evaluation?: string | null;
   raw_text: string | null;
+  text_extractor?: string | null;
+  structured_by?: string | null;
+  ai_parse_error?: string | null;
 }
 
 // 简历列表项
 export interface ResumeListItem {
   id: string;
+  job_requirement_id: string;
+  job_title: string;
   file_name: string;
   parse_status: ParseStatus;
   candidate_name: string | null;
   candidate_email: string | null;
   candidate_phone: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 // 简历详情
 export interface Resume {
   id: string;
   job_requirement_id: string;
+  job_title: string;
   file_name: string;
   file_type: FileType;
   file_size: number;
@@ -68,8 +107,9 @@ export interface Resume {
   candidate_email: string | null;
   candidate_phone: string | null;
   file_url: string;
-  uploaded_by: string;
+  uploaded_by?: string;
   created_at: string;
+  updated_at: string;
 }
 
 // 上传结果项

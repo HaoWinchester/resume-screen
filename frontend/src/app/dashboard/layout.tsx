@@ -6,6 +6,7 @@ import { LogoutOutlined, UserOutlined } from '@ant-design/icons';
 import { useRouter, usePathname } from 'next/navigation';
 import { useAuthStore } from '@/lib/auth';
 import Link from 'next/link';
+import { HrAiGuide } from '@/components/hr-ai-guide';
 
 function MaterialIcon({
   name,
@@ -38,20 +39,71 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [hasHydrated, isAuthenticated, router]);
 
   const menuItems = [
-    { key: '/dashboard', href: '/dashboard', icon: 'dashboard', label: '控制面板' },
-    { key: '/dashboard/resumes/upload', href: '/dashboard/resumes/upload', icon: 'cloud_upload', label: '简历上传' },
-    { key: '/dashboard/jobs', href: '/dashboard/jobs', icon: 'pageview', label: '搜索筛选' },
-    { key: '/dashboard/analysis', href: '/dashboard/analysis', icon: 'groups', label: '候选人结果' },
+    { key: '/dashboard', href: '/dashboard', icon: 'dashboard', label: '控制面板', section: '总览' },
+    { key: '/dashboard/workbench', href: '/dashboard/workbench', icon: 'view_kanban', label: '招聘工作台', section: '总览' },
+    {
+      key: '/dashboard/resume-center',
+      href: '/dashboard/resumes/upload',
+      icon: 'cloud_upload',
+      label: '简历与渠道',
+      section: '获客',
+      children: [
+        { key: '/dashboard/resumes/upload', href: '/dashboard/resumes/upload', icon: 'cloud_upload', label: '简历上传' },
+        { key: '/dashboard/resumes', href: '/dashboard/resumes', icon: 'folder_shared', label: '简历库' },
+        { key: '/dashboard/channels', href: '/dashboard/channels/import', icon: 'hub', label: '渠道导入' },
+      ],
+    },
+    { key: '/dashboard/jobs', href: '/dashboard/jobs', icon: 'pageview', label: '搜索筛选', section: '获客' },
+    {
+      key: '/dashboard/analysis',
+      href: '/dashboard/analysis',
+      icon: 'groups',
+      label: '候选人筛选',
+      section: '筛选',
+      children: [
+        { key: '/dashboard/analysis', href: '/dashboard/analysis', icon: 'groups', label: '候选人结果' },
+      ],
+    },
+    { key: '/dashboard/shortlist', href: '/dashboard/shortlist', icon: 'connect_without_contact', label: '优先沟通', section: '筛选' },
+    {
+      key: '/dashboard/pipeline',
+      href: '/dashboard/pipeline',
+      icon: 'conversion_path',
+      label: '招聘跟进',
+      section: '闭环',
+      children: [
+        { key: '/dashboard/pipeline', href: '/dashboard/pipeline', icon: 'conversion_path', label: '招聘漏斗' },
+        { key: '/dashboard/communications', href: '/dashboard/communications', icon: 'forum', label: '沟通记录' },
+        { key: '/dashboard/interviews', href: '/dashboard/interviews', icon: 'event_available', label: '待面试' },
+        { key: '/dashboard/interview-feedback', href: '/dashboard/interview-feedback', icon: 'rate_review', label: '面试评价' },
+        { key: '/dashboard/reminders', href: '/dashboard/reminders', icon: 'notification_important', label: '自动提醒' },
+        { key: '/dashboard/calendar', href: '/dashboard/calendar', icon: 'calendar_month', label: '日历排期' },
+        { key: '/dashboard/email-templates', href: '/dashboard/email-templates', icon: 'mail', label: '邮件模板' },
+        { key: '/dashboard/audit', href: '/dashboard/audit', icon: 'admin_panel_settings', label: '权限审计' },
+      ],
+    },
+    { key: '/dashboard/talent-pool', href: '/dashboard/talent-pool', icon: 'database', label: '人才库', section: '沉淀' },
+    { key: '/dashboard/jd-optimizer', href: '/dashboard/jd-optimizer', icon: 'auto_fix_high', label: 'JD 优化', section: '沉淀' },
+    { key: '/dashboard/settings', href: '/dashboard/settings', icon: 'settings', label: '基础信息', section: '系统' },
   ];
+  const flatMenuItems = menuItems.flatMap((item) => [item, ...(item.children || [])]);
+  const sortedFlatMenuItems = [...flatMenuItems].sort((a, b) => b.key.length - a.key.length);
 
-  const activeKey =
-    menuItems.find((item) => {
+  const activeKey = pathname?.startsWith('/dashboard/reports')
+    ? '/dashboard/talent-pool'
+    : sortedFlatMenuItems.find((item) => {
       if (item.key === '/dashboard') return pathname === '/dashboard';
       return pathname?.startsWith(item.key);
     })?.key || '/dashboard';
+  const activeParentKey = menuItems.find((item) => {
+    if (activeKey === item.key) return true;
+    return item.children?.some((child) => child.key === activeKey);
+  })?.key || activeKey;
 
   const isUpload = pathname?.startsWith('/dashboard/resumes');
-  const isTopShell = pathname?.startsWith('/dashboard/jobs') || pathname?.startsWith('/dashboard/analysis');
+  const activeMenuItem = pathname?.startsWith('/dashboard/reports')
+    ? { key: '/dashboard/reports', href: '/dashboard/talent-pool', icon: 'article', label: '候选人报告' }
+    : flatMenuItems.find((item) => item.key === activeKey) || menuItems[0];
 
   const handleLogout = () => {
     logout();
@@ -72,28 +124,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     );
   }
 
-  const sideBrand = isTopShell ? (
-    <div className="mb-6 px-2 py-4">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#00288e] text-white">
-          <MaterialIcon name={pathname?.startsWith('/dashboard/jobs') ? 'rocket_launch' : 'analytics'} fill />
-        </div>
-        <div>
-          <div className="text-lg font-black leading-tight text-blue-900">
-            {pathname?.startsWith('/dashboard/jobs') ? 'HR 极速招聘' : 'HR 智能人才'}
-          </div>
-          <div className="text-[10px] font-medium uppercase tracking-wider text-slate-500">
-            {pathname?.startsWith('/dashboard/jobs') ? '招聘管理套件' : '招聘管理系统'}
-          </div>
-        </div>
-      </div>
-    </div>
-  ) : (
-    <Link href="/dashboard" className="mb-8 mt-2 flex items-center gap-3 px-2">
-      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#1e40af] text-white shadow-sm">
+  const sideBrand = (
+    <Link href="/dashboard" className="mb-8 mt-2 flex h-12 shrink-0 items-center gap-3 px-2">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#1e40af] text-white shadow-sm">
         <MaterialIcon name="analytics" fill />
       </span>
-      <span>
+      <span className="min-w-0">
         <span className="block text-lg font-black leading-none text-blue-900">HR Talent</span>
         <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">招聘套件</span>
       </span>
@@ -101,36 +137,73 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   );
 
   const sideNav = (
-    <>
+    <div className="flex h-full min-h-0 flex-col">
       {sideBrand}
-      <nav className="flex-1 space-y-1">
-        {menuItems.map((item) => {
-          const isActive = activeKey === item.key;
-          return (
-            <Link
-              key={item.key}
-              href={item.href}
-              className={[
-                'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
-                isActive
-                  ? 'bg-blue-50 text-[#00288e]'
-                  : 'text-slate-600 hover:translate-x-1 hover:bg-slate-100 hover:text-[#00288e]',
-              ].join(' ')}
-            >
-              <MaterialIcon name={item.icon} className="text-[24px]" fill={isActive} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="min-h-0 flex-1 space-y-4 overflow-y-auto pr-1">
+        {Array.from(new Set(menuItems.map((item) => item.section))).map((section) => (
+          <div key={section} className="space-y-1">
+            <div className="px-3 text-[10px] font-black uppercase tracking-[0.22em] text-slate-400">{section}</div>
+            {menuItems
+              .filter((item) => item.section === section)
+              .map((item) => {
+                const isActive = activeParentKey === item.key;
+                const isExpanded = isActive && item.children?.length;
+                return (
+                  <div key={item.key}>
+                    <Link
+                      href={item.href}
+                      className={[
+                        'flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all',
+                        isActive
+                          ? 'bg-blue-50 text-[#00288e]'
+                          : 'text-slate-600 hover:translate-x-1 hover:bg-slate-100 hover:text-[#00288e]',
+                      ].join(' ')}
+                    >
+                      <MaterialIcon name={item.icon} className="text-[24px]" fill={isActive} />
+                      <span className="flex-1">{item.label}</span>
+                      {item.children?.length ? (
+                        <MaterialIcon
+                          name={isExpanded ? 'expand_less' : 'expand_more'}
+                          className="text-[18px] text-slate-400"
+                        />
+                      ) : null}
+                    </Link>
+                    {isExpanded ? (
+                      <div className="mt-1 space-y-1 rounded-xl bg-white/70 p-2 shadow-inner shadow-slate-200/60">
+                        {item.children?.map((child) => {
+                          const isChildActive = activeKey === child.key;
+                          return (
+                            <Link
+                              key={child.key}
+                              href={child.href}
+                              className={[
+                                'flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-semibold transition-all',
+                                isChildActive
+                                  ? 'bg-[#00288e] text-white shadow-sm'
+                                  : 'text-slate-500 hover:bg-blue-50 hover:text-[#00288e]',
+                              ].join(' ')}
+                            >
+                              <MaterialIcon name={child.icon} className="text-[17px]" fill={isChildActive} />
+                              <span className="truncate">{child.label}</span>
+                            </Link>
+                          );
+                        })}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+          </div>
+        ))}
       </nav>
-      <div className="space-y-1 border-t border-slate-200 pt-4">
+      <div className="mt-4 shrink-0 space-y-1 border-t border-slate-200 pt-4">
         <Button
           type="text"
           icon={<MaterialIcon name="contact_support" />}
           className="flex h-11 w-full items-center justify-start rounded-lg px-3 text-slate-600 hover:bg-slate-100"
           onClick={() => message.info('技术支持已收到您的请求，我们会尽快协助。')}
         >
-          {isUpload ? '帮助中心' : isTopShell ? '帮助支持' : '技术支持'}
+          技术支持
         </Button>
         <Button
           type="text"
@@ -142,14 +215,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           退出登录
         </Button>
       </div>
-    </>
+    </div>
   );
 
   const headerActions = (
     <div className="flex items-center gap-4">
       <div className="relative hidden lg:block">
         <Input
-          className={isTopShell ? 'h-10 w-64 rounded-lg bg-[#f4f2fc]' : isUpload ? 'h-10 w-64 rounded-lg' : 'h-11 w-80 rounded-full border-0 bg-slate-100'}
+          className="h-10 w-64 rounded-lg bg-slate-100"
           prefix={<MaterialIcon name="search" className="text-slate-400" />}
           placeholder={isUpload ? '搜索文件...' : '搜索候选人...'}
           onPressEnter={(event) => {
@@ -161,7 +234,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="flex gap-2 text-slate-600">
         <Button type="text" shape="circle" icon={<MaterialIcon name="notifications" />} />
         <Button type="text" shape="circle" icon={<MaterialIcon name="help" />} />
-        <Button type="text" shape="circle" icon={<MaterialIcon name="settings" fill />} />
+        <Button type="text" shape="circle" icon={<MaterialIcon name="settings" fill />} onClick={() => router.push('/dashboard/settings')} />
       </div>
       <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
         <Avatar className="cursor-pointer bg-slate-800" icon={<UserOutlined />} />
@@ -169,41 +242,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </div>
   );
 
-  if (isTopShell) {
-    return (
-      <div className="min-h-screen bg-[#fbf8ff] font-['Inter'] text-[#1a1b22]">
-        <header className="sticky top-0 z-40 flex h-16 w-full items-center justify-between border-b border-slate-200 bg-white px-6 shadow-sm">
-          <div className="flex items-center gap-8">
-            <Link href="/dashboard" className="text-xl font-bold tracking-tight text-blue-800">
-              TalentScreen
-            </Link>
-            <div className="hidden items-center gap-6 md:flex">
-              {menuItems.map((item) => (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className={activeKey === item.key ? 'border-b-2 border-blue-800 py-5 font-semibold text-blue-800' : 'text-slate-600 transition-colors hover:text-blue-700'}
-                >
-                  {item.label}
-                </Link>
-              ))}
-            </div>
-          </div>
-          {headerActions}
-        </header>
-        <div className="flex min-h-[calc(100vh-64px)]">
-          <aside className="sticky top-16 hidden h-[calc(100vh-64px)] w-64 flex-col border-r border-slate-200 bg-slate-50 p-4 lg:flex">
-            {sideNav}
-          </aside>
-          <main className="mx-auto w-full max-w-[1440px] flex-1 p-6 lg:p-10">{children}</main>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-[#fbf8ff] font-['Inter'] text-[#1a1b22]">
-      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-64 flex-col border-r border-slate-200 bg-slate-50 p-4 lg:flex">
+      <aside className="fixed left-0 top-0 z-50 hidden h-screen w-64 flex-col overflow-hidden border-r border-slate-200 bg-slate-50 p-4 lg:flex">
         {sideNav}
       </aside>
       <div className="min-h-screen lg:ml-64">
@@ -212,34 +253,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <Link href="/dashboard" className="text-xl font-bold tracking-tight text-blue-800">
               TalentScreen
             </Link>
-            {isUpload ? (
-              <>
-                <span className="hidden h-6 w-px bg-slate-200 md:block" />
-                <h2 className="text-lg font-bold text-[#1a1b22]">简历上传</h2>
-              </>
-            ) : (
-              <div className="hidden items-center gap-6 pl-6 md:flex">
-                <Link href="/dashboard" className="border-b-2 border-blue-800 py-5 font-semibold text-blue-800">
-                  概览
-                </Link>
-                <button
-                  type="button"
-                  className="border-0 bg-transparent py-5 text-slate-600 hover:text-blue-800"
-                  onClick={() => message.info('招聘漏斗会基于已上传简历与分析状态自动汇总。')}
-                >
-                  招聘漏斗
-                </button>
-                <Link href="/dashboard/analysis" className="py-5 text-slate-600 hover:text-blue-800">
-                  数据分析
-                </Link>
-              </div>
-            )}
+            <span className="hidden h-6 w-px bg-slate-200 md:block" />
+            <div className="hidden items-center gap-2 md:flex">
+              <MaterialIcon name={activeMenuItem.icon} className="text-[22px] text-[#00288e]" fill />
+              <h2 className="text-lg font-bold text-[#1a1b22]">{activeMenuItem.label}</h2>
+            </div>
           </div>
           {headerActions}
         </header>
         <main className={isUpload ? 'mx-auto max-w-6xl p-6 lg:p-10' : 'mx-auto max-w-[1440px] p-6 lg:p-10'}>
           {children}
         </main>
+        <HrAiGuide />
       </div>
     </div>
   );

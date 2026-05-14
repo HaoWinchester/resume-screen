@@ -53,7 +53,7 @@ test.describe('Team Collaboration Flow', () => {
     const timestamp = Date.now();
     const memberEmail = `shared-${timestamp}@example.com`;
     const invite = await inviteMemberViaAPI(token, memberEmail, `共享成员${timestamp}`, 'operator');
-    const job = await createJobViaAPI(token, `共享岗位_${timestamp}`, 'active');
+    const job = await createJobViaAPI(token, `资深产品经理（协作验证）-${timestamp}`, 'active');
     const fileName = `shared-resume-${timestamp}.pdf`;
     await uploadSampleResume(request, token, job.id, fileName);
 

@@ -1,5 +1,6 @@
 import uuid
 import asyncio
+import logging
 from datetime import datetime, timezone
 
 from app.config import get_settings
@@ -8,6 +9,35 @@ from app.services.ai_analyzer import AIAnalyzer
 from app.worker import celery_app
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
+
+
+async def _maybe_enqueue_agent_run(db, analysis: AnalysisResult, resume: Resume, job: JobRequirement) -> dict:
+    if not settings.AGENT_TEAM_AUTO_RUN_ENABLED:
+        return {}
+
+    try:
+        from app.services.agent_runtime_service import AgentRuntimeService
+        from app.services.task_dispatcher import dispatch_agent_run
+
+        service = AgentRuntimeService(db)
+        run, created = await service.ensure_run_for_analysis(
+            company_id=job.company_id,
+            analysis_id=analysis.id,
+            created_by=resume.uploaded_by or job.created_by,
+            fresh_after=analysis.analyzed_at,
+        )
+        dispatch_mode = dispatch_agent_run(str(run.id)) if created else None
+        return {
+            "agent_run_id": str(run.id),
+            "agent_run_dispatched": bool(dispatch_mode),
+            "agent_run_dispatch_mode": dispatch_mode,
+        }
+    except Exception as exc:
+        logger.exception("Failed to enqueue agent run for analysis %s", analysis.id)
+        return {
+            "agent_run_error": str(exc),
+        }
 
 
 async def run_analyze_resume(
@@ -70,18 +100,23 @@ async def run_analyze_resume(
 
             # Run AI analysis
             analyzer = AIAnalyzer()
-            ai_result = await analyzer.analyze_resume(job.criteria, resume.parsed_data)
+            job_context = {
+                **(job.criteria or {}),
+                "job_title": job.title,
+                "job_description": job.description,
+            }
+            ai_result = await analyzer.analyze_resume(job_context, resume.parsed_data)
 
             # Extract dimension scores
             dimension_scores = {}
             for dim_name, dim_data in ai_result.items():
-                if dim_name in ["strengths", "weaknesses"]:
+                if dim_name in ["strengths", "weaknesses", "recommendation_reason", "interview_questions", "next_actions"]:
                     continue
                 if isinstance(dim_data, dict) and "score" in dim_data:
                     dimension_scores[dim_name] = dim_data
 
             # Calculate overall score
-            weights = job.criteria.get("weights", {})
+            weights = job_context.get("weights", {})
             overall_score = analyzer.calculate_overall_score(dimension_scores, weights)
 
             # Get all analysis results for this job to calculate ranking
@@ -106,7 +141,11 @@ async def run_analyze_resume(
             # Update analysis result
             analysis.overall_score = overall_score
             analysis.recommendation = recommendation
-            analysis.recommendation_reason = f"综合评分{overall_score}分，技能和经验匹配度高" if overall_score >= 70 else "综合表现一般"
+            analysis.recommendation_reason = ai_result.get("recommendation_reason") or (
+                f"综合评分{overall_score}分，候选人与{job.title}岗位的核心要求匹配度较高"
+                if overall_score >= 70
+                else f"综合评分{overall_score}分，候选人与{job.title}岗位仍有关键匹配点需要验证"
+            )
             analysis.strengths = ai_result.get("strengths", [])
             analysis.weaknesses = ai_result.get("weaknesses", [])
             analysis.analysis_status = AnalysisStatus.COMPLETED
@@ -129,7 +168,7 @@ async def run_analyze_resume(
             }
 
             for dim_name, dim_data in ai_result.items():
-                if dim_name in ["strengths", "weaknesses"]:
+                if dim_name in ["strengths", "weaknesses", "recommendation_reason", "interview_questions", "next_actions"]:
                     continue
                 if isinstance(dim_data, dict) and "score" in dim_data:
                     dimension_enum = weight_map.get(dim_name)
@@ -150,11 +189,13 @@ async def run_analyze_resume(
 
             await db.commit()
             await db.refresh(analysis)
+            agent_run_info = await _maybe_enqueue_agent_run(db, analysis, resume, job)
 
             return {
                 "analysis_id": str(analysis.id),
                 "overall_score": overall_score,
-                "recommendation": recommendation
+                "recommendation": recommendation,
+                **agent_run_info,
             }
 
         except Exception as e:

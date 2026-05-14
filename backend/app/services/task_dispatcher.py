@@ -105,3 +105,23 @@ def dispatch_resume_analysis(resume_id: str, job_requirement_id: str) -> str:
     from app.tasks.analyze_resume import run_analyze_resume
 
     return _submit_local_job("resume-analysis", run_analyze_resume, resume_id, job_requirement_id)
+
+
+def dispatch_agent_run(agent_run_id: str) -> str:
+    settings = get_settings()
+    mode = settings.TASK_EXECUTION_MODE.lower().strip()
+
+    if mode in {"celery", "auto"}:
+        from app.tasks.run_agent_team import run_agent_team_task
+
+        try:
+            run_agent_team_task.delay(agent_run_id)
+            return "celery"
+        except Exception:
+            if mode == "celery":
+                raise
+            logger.exception("Celery dispatch failed for agent run, falling back to local execution")
+
+    from app.tasks.run_agent_team import run_agent_team
+
+    return _submit_local_job("agent-run", run_agent_team, agent_run_id)

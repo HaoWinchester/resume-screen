@@ -187,9 +187,9 @@ test.describe('Resume Upload Page', () => {
   test('upload page only requests and displays active jobs', async ({ page }) => {
     const token = await getAuthToken();
     const timestamp = Date.now();
-    const draftJob = await createJobViaAPI(token, `上传过滤_草稿_${timestamp}`, 'draft');
-    const closedJob = await createJobViaAPI(token, `上传过滤_关闭_${timestamp}`, 'closed');
-    const activeJob = await createJobViaAPI(token, `上传过滤_活跃_${timestamp}`, 'active');
+    const draftJob = await createJobViaAPI(token, `UI 设计师（草稿验证）-${timestamp}`, 'draft');
+    const closedJob = await createJobViaAPI(token, `测试开发工程师（已关闭验证）-${timestamp}`, 'closed');
+    const activeJob = await createJobViaAPI(token, `前端开发工程师（简历上传验证）-${timestamp}`, 'active');
 
     await page.goto('/login');
     await page.getByPlaceholder(/邮箱/).fill(ADMIN_EMAIL);

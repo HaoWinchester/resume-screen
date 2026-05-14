@@ -11,7 +11,36 @@ from .analysis import (
     AnalysisStatistics, DimensionScoreItem, DimensionScoreDetail,
     ComparisonResponse, ComparisonCandidate
 )
-from .company import CompanyResponse, MemberListResponse, MemberItem, InviteRequest, UpdateRoleRequest
+from .company import CompanyResponse, CompanyUpdateRequest, MemberListResponse, MemberItem, InviteRequest, UpdateRoleRequest
+from .channels import (
+    ChannelCandidateImportItem,
+    ChannelCandidateImportRequest,
+    ChannelCandidateImportResponse,
+    ChannelImportFailed,
+    ChannelImportResult,
+)
+from .recruitment import (
+    CandidateReport,
+    CompanyTalentInsight,
+    JobInsightResponse,
+    JobProfileSuggestion,
+    RecruitmentFunnelStage,
+    RecruitmentMetric,
+    RecruitmentOverview,
+    RecruitmentPipelineColumn,
+    RecruitmentRiskInsight,
+    TalentPoolCandidate,
+    TalentPoolResponse,
+    WorkbenchEntry,
+)
+from .candidate_workflow import (
+    CandidateWorkflowEventItem,
+    CandidateWorkflowItem,
+    CandidateWorkflowListResponse,
+    MarkContactedRequest,
+    ScheduleInterviewRequest,
+    WorkflowNoteRequest,
+)
 
 __all__ = [
     "RegisterRequest",
@@ -45,8 +74,32 @@ __all__ = [
     "ComparisonResponse",
     "ComparisonCandidate",
     "CompanyResponse",
+    "CompanyUpdateRequest",
     "MemberListResponse",
     "MemberItem",
     "InviteRequest",
     "UpdateRoleRequest",
+    "ChannelCandidateImportItem",
+    "ChannelCandidateImportRequest",
+    "ChannelCandidateImportResponse",
+    "ChannelImportFailed",
+    "ChannelImportResult",
+    "CandidateReport",
+    "CompanyTalentInsight",
+    "JobInsightResponse",
+    "JobProfileSuggestion",
+    "RecruitmentFunnelStage",
+    "RecruitmentMetric",
+    "RecruitmentOverview",
+    "RecruitmentPipelineColumn",
+    "RecruitmentRiskInsight",
+    "TalentPoolCandidate",
+    "TalentPoolResponse",
+    "WorkbenchEntry",
+    "CandidateWorkflowEventItem",
+    "CandidateWorkflowItem",
+    "CandidateWorkflowListResponse",
+    "MarkContactedRequest",
+    "ScheduleInterviewRequest",
+    "WorkflowNoteRequest",
 ]

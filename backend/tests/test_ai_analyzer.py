@@ -31,10 +31,20 @@ class TestBuildAnalysisPrompt:
         resume_data = {
             "name": "张三",
             "email": "zhangsan@example.com",
+            "summary": "5 年全栈开发经验，主攻 React 与 Python。",
             "skills": ["Python", "Docker", "React"],
             "education": [{"school": "清华大学", "degree": "硕士", "major": "CS"}],
-            "work_experience": [{"company": "ABC", "position": "Dev"}],
+            "work_experience": [
+                {
+                    "company": "ABC",
+                    "position": "Dev",
+                    "responsibilities": ["负责核心前端模块"],
+                    "achievements": ["将页面加载耗时降低 30%"],
+                }
+            ],
             "projects": [{"name": "Web App", "description": "Built a web app"}],
+            "certificates": [{"name": "PMP", "issuer": "PMI", "date": "2020"}],
+            "raw_text": "简历原文：张三负责 React 中后台与 Python 服务开发。",
         }
         prompt = analyzer.build_analysis_prompt(job_criteria, resume_data)
         assert "Python" in prompt
@@ -47,6 +57,14 @@ class TestBuildAnalysisPrompt:
         assert "overall_quality" in prompt
         assert "high" in prompt
         assert "3" in prompt
+        assert "岗位职责/描述" in prompt
+        assert "evidence" in prompt
+        assert "interview_questions" in prompt
+        assert "recommendation_reason" in prompt
+        assert "简历原文节选" in prompt
+        assert "张三负责 React 中后台" in prompt
+        assert "将页面加载耗时降低 30%" in prompt
+        assert "PMP" in prompt
 
 
 # ---------------------------------------------------------------------------
@@ -216,6 +234,9 @@ class TestLocalFallbackAnalysis:
         assert normalized["strengths"]
         assert normalized["weaknesses"] == ["核心技能缺失", "无工作经验"]
         assert normalized["skill_match"]["score"] == 20
+        assert normalized["skill_match"]["evidence"]
+        assert normalized["skill_match"]["interview_questions"]
+        assert normalized["recommendation_reason"]
 
     def test_build_local_analysis_returns_complete_shape(self):
         analyzer = AIAnalyzer()
@@ -244,6 +265,7 @@ class TestLocalFallbackAnalysis:
             "education",
             "project_relevance",
             "overall_quality",
+            "recommendation_reason",
             "strengths",
             "weaknesses",
         }
@@ -254,6 +276,10 @@ class TestLocalFallbackAnalysis:
         assert result["education"]["degree_match"] is True
         assert result["project_relevance"]["relevant_projects"] == 1
         assert result["overall_quality"]["score"] >= 80
+        assert result["skill_match"]["evidence"]
+        assert result["experience_match"]["concerns"]
+        assert result["project_relevance"]["interview_questions"]
+        assert result["recommendation_reason"]
         assert result["strengths"]
         assert result["weaknesses"]
 
@@ -334,6 +360,7 @@ class TestLocalFallbackAnalysis:
         )
 
         assert result["skill_match"]["score"] == 88
+        assert result["skill_match"]["evidence"]
         assert result["strengths"] == ["智谱模型可用"]
 
     @pytest.mark.asyncio

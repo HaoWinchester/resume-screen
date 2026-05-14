@@ -7,7 +7,7 @@ celery_app = Celery(
     "resume_worker",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.tasks.parse_resume", "app.tasks.analyze_resume"]
+    include=["app.tasks.parse_resume", "app.tasks.analyze_resume", "app.tasks.run_agent_team"]
 )
 
 celery_app.conf.update(

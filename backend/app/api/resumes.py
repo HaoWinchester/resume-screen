@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
+from datetime import datetime, timezone
 import uuid
 
 from app.database import get_db
@@ -158,7 +159,7 @@ async def upload_resumes(
 
 @router.get("", response_model=PaginatedResponse[ResumeListItem])
 async def list_resumes(
-    job_requirement_id: uuid.UUID = Query(..., description="岗位需求ID"),
+    job_requirement_id: uuid.UUID | None = Query(None, description="岗位需求ID，不传则返回当前公司全部简历"),
     parse_status: str = Query(None, description="解析状态筛选"),
     pagination: tuple[int, int] = Depends(get_pagination_params),
     current_user: User = Depends(get_current_user),
@@ -167,61 +168,83 @@ async def list_resumes(
     """
     获取简历列表
 
-    - 按岗位需求筛选
+    - 默认返回当前公司全部简历
+    - 可按岗位需求筛选
     - 按解析状态筛选
     - 支持分页
     """
     page, per_page = pagination
-
-    # Verify job requirement belongs to user's company
-    result = await db.execute(
-        select(JobRequirement).where(
-            JobRequirement.id == job_requirement_id,
-            JobRequirement.company_id == current_user.company_id
-        )
-    )
-    job = result.scalar_one_or_none()
-    if not job:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail={"error": {"code": "NOT_FOUND", "message": "岗位需求不存在"}}
-        )
-
-    # Build query
-    from sqlalchemy import func, and_
-    query = select(Resume).where(
-        Resume.job_requirement_id == job_requirement_id
-    )
-
+    status_filter: ParseStatus | None = None
     if parse_status:
-        query = query.where(Resume.parse_status == parse_status)
+        try:
+            status_filter = ParseStatus(parse_status.lower())
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"error": {"code": "INVALID_PARSE_STATUS", "message": "解析状态不合法"}}
+            )
 
-    # Get total count
-    count_query = select(func.count()).select_from(Resume).where(
-        Resume.job_requirement_id == job_requirement_id
+    if job_requirement_id:
+        # Verify job requirement belongs to user's company
+        result = await db.execute(
+            select(JobRequirement).where(
+                JobRequirement.id == job_requirement_id,
+                JobRequirement.company_id == current_user.company_id
+            )
+        )
+        job = result.scalar_one_or_none()
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "岗位需求不存在"}}
+            )
+
+    query = (
+        select(Resume, JobRequirement.title)
+        .join(JobRequirement, Resume.job_requirement_id == JobRequirement.id)
+        .where(JobRequirement.company_id == current_user.company_id)
     )
-    if parse_status:
-        count_query = count_query.where(Resume.parse_status == parse_status)
+    count_query = (
+        select(func.count())
+        .select_from(Resume)
+        .join(JobRequirement, Resume.job_requirement_id == JobRequirement.id)
+        .where(JobRequirement.company_id == current_user.company_id)
+    )
+
+    if job_requirement_id:
+        query = query.where(Resume.job_requirement_id == job_requirement_id)
+        count_query = count_query.where(Resume.job_requirement_id == job_requirement_id)
+
+    if status_filter:
+        query = query.where(Resume.parse_status == status_filter)
+        count_query = count_query.where(Resume.parse_status == status_filter)
+
+    query = (
+        query
+        .order_by(Resume.updated_at.desc(), Resume.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+    )
+    result = await db.execute(query)
+    rows = result.all()
 
     total_result = await db.execute(count_query)
-    total = total_result.scalar()
-
-    # Get paginated results
-    query = query.order_by(Resume.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
-    result = await db.execute(query)
-    items = result.scalars().all()
+    total = total_result.scalar() or 0
 
     response_items = []
-    for item in items:
+    for item, job_title in rows:
         basic_info = get_resume_basic_info(item)
         response_items.append({
             "id": item.id,
+            "job_requirement_id": item.job_requirement_id,
+            "job_title": job_title,
             "file_name": item.file_name,
             "parse_status": item.parse_status.value,
             "candidate_name": basic_info.get("name"),
             "candidate_email": basic_info.get("email"),
             "candidate_phone": basic_info.get("phone"),
-            "created_at": item.created_at
+            "created_at": item.created_at,
+            "updated_at": item.updated_at,
         })
 
     return PaginatedResponse(
@@ -230,6 +253,92 @@ async def list_resumes(
         page=page,
         per_page=per_page
     )
+
+
+@router.post("/retry-pending", status_code=status.HTTP_202_ACCEPTED)
+async def retry_pending_resumes(
+    job_requirement_id: uuid.UUID | None = Query(None, description="岗位需求ID，不传则处理当前公司全部等待解析简历"),
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """批量重新解析当前公司等待中或卡在解析中的简历。"""
+    from sqlalchemy import and_
+    from app.models import AnalysisResult, AnalysisStatus, RecommendationLevel, DimensionScore
+
+    if job_requirement_id:
+        job_result = await db.execute(
+            select(JobRequirement).where(
+                JobRequirement.id == job_requirement_id,
+                JobRequirement.company_id == current_user.company_id
+            )
+        )
+        if not job_result.scalar_one_or_none():
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail={"error": {"code": "NOT_FOUND", "message": "岗位需求不存在"}}
+            )
+
+    query = (
+        select(Resume)
+        .join(JobRequirement, Resume.job_requirement_id == JobRequirement.id)
+        .where(
+            and_(
+                JobRequirement.company_id == current_user.company_id,
+                Resume.parse_status.in_([ParseStatus.PENDING, ParseStatus.PARSING]),
+            )
+        )
+        .order_by(Resume.created_at.desc())
+        .limit(200)
+    )
+    if job_requirement_id:
+        query = query.where(Resume.job_requirement_id == job_requirement_id)
+
+    result = await db.execute(query)
+    resumes = result.scalars().all()
+    dispatched: list[Resume] = []
+
+    for resume in resumes:
+        now = datetime.now(timezone.utc)
+        analysis_result = await db.execute(
+            select(AnalysisResult).where(AnalysisResult.resume_id == resume.id)
+        )
+        analysis = analysis_result.scalar_one_or_none()
+
+        resume.parse_status = ParseStatus.PENDING
+        resume.parse_error = None
+        resume.parsed_data = None
+        resume.candidate_name = None
+        resume.candidate_email = None
+        resume.candidate_phone = None
+        resume.updated_at = now
+
+        if analysis:
+            analysis.analysis_status = AnalysisStatus.PENDING
+            analysis.overall_score = 0.0
+            analysis.recommendation = RecommendationLevel.PENDING
+            analysis.recommendation_reason = None
+            analysis.strengths = None
+            analysis.weaknesses = None
+            analysis.analyzed_at = None
+
+            old_scores = await db.execute(
+                select(DimensionScore).where(DimensionScore.analysis_id == analysis.id)
+            )
+            for score in old_scores.scalars().all():
+                await db.delete(score)
+
+        dispatched.append(resume)
+
+    await db.commit()
+
+    for resume in dispatched:
+        dispatch_resume_parse(str(resume.id), resume.file_path, resume.file_type.value)
+
+    return {
+        "retried": len(dispatched),
+        "scope": str(job_requirement_id) if job_requirement_id else "all",
+        "message": f"已重新提交 {len(dispatched)} 份等待解析的简历"
+    }
 
 
 @router.get("/{resume_id}", response_model=ResumeDetail)
@@ -242,7 +351,7 @@ async def get_resume_detail(
     from sqlalchemy import and_
 
     result = await db.execute(
-        select(Resume)
+        select(Resume, JobRequirement.title)
         .join(JobRequirement, Resume.job_requirement_id == JobRequirement.id)
         .where(
             and_(
@@ -251,19 +360,22 @@ async def get_resume_detail(
             )
         )
     )
-    resume = result.scalar_one_or_none()
+    row = result.one_or_none()
 
-    if not resume:
+    if not row:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail={"error": {"code": "NOT_FOUND", "message": "简历不存在"}}
         )
 
+    resume, job_title = row
     basic_info = get_resume_basic_info(resume)
     display_parsed_data = get_display_parsed_data(resume)
 
     return {
         "id": resume.id,
+        "job_requirement_id": resume.job_requirement_id,
+        "job_title": job_title,
         "file_name": resume.file_name,
         "file_type": resume.file_type,
         "file_size": resume.file_size,
@@ -274,6 +386,7 @@ async def get_resume_detail(
         "candidate_email": basic_info.get("email"),
         "candidate_phone": basic_info.get("phone"),
         "created_at": resume.created_at,
+        "updated_at": resume.updated_at,
         "file_url": f"/api/v1/resumes/{resume.id}/file"
     }
 
@@ -316,12 +429,14 @@ async def retry_resume_parse(
     )
     analysis = analysis_result.scalar_one_or_none()
 
+    now = datetime.now(timezone.utc)
     resume.parse_status = ParseStatus.PENDING
     resume.parse_error = None
     resume.parsed_data = None
     resume.candidate_name = None
     resume.candidate_email = None
     resume.candidate_phone = None
+    resume.updated_at = now
 
     if analysis:
         analysis.analysis_status = AnalysisStatus.PENDING

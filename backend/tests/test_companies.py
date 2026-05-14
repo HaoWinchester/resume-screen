@@ -26,7 +26,49 @@ class TestGetCompanyInfo:
         body = resp.json()
         assert body["id"] == str(test_company.id)
         assert body["name"] == "Test Company"
+        assert "contact_name" in body
+        assert "contact_phone" in body
         assert "created_at" in body
+
+
+class TestUpdateCompanyInfo:
+    """PATCH /api/v1/companies/me"""
+
+    async def test_update_company_contact_info(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+    ):
+        resp = await async_client.patch(
+            "/api/v1/companies/me",
+            json={
+                "name": "Test Company",
+                "industry": "Technology",
+                "contact_name": "HR Talent",
+                "contact_phone": "13800000000",
+                "contact_email": "hr@example.com",
+            },
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["contact_name"] == "HR Talent"
+        assert body["contact_phone"] == "13800000000"
+        assert body["contact_email"] == "hr@example.com"
+
+    async def test_update_company_info_admin_only(
+        self,
+        async_client: AsyncClient,
+        operator_headers: dict,
+    ):
+        resp = await async_client.patch(
+            "/api/v1/companies/me",
+            json={"name": "Test Company", "contact_name": "HR", "contact_phone": "13800000000"},
+            headers=operator_headers,
+        )
+
+        assert resp.status_code == 403
 
 
 class TestListMembers:

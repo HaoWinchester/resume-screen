@@ -1,11 +1,13 @@
 import uuid
 import logging
+from datetime import datetime, timezone
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 
 from app.config import get_settings
 from app.models import Resume, ParseStatus, AnalysisResult, AnalysisStatus
+from app.services.ai_resume_parser import AIResumeParser
 from app.services.resume_parser import ResumeParser
 from app.worker import celery_app
 
@@ -40,12 +42,17 @@ async def run_parse_resume(resume_id: str, file_path: str, file_type: str):
 
             # Update status to parsing
             resume.parse_status = ParseStatus.PARSING
+            resume.updated_at = datetime.now(timezone.utc)
             await db.commit()
 
             # Parse the file
             parser = ResumeParser()
             raw_text = await parser.parse_file(file_path, file_type)
             parsed_data = parser.extract_structured_data(raw_text)
+
+            if settings.AI_RESUME_PARSER_ENABLED:
+                ai_parser = AIResumeParser()
+                parsed_data = await ai_parser.parse(raw_text, parsed_data)
 
             # Update resume with parsed data
             resume.parsed_data = parsed_data
@@ -54,6 +61,7 @@ async def run_parse_resume(resume_id: str, file_path: str, file_type: str):
             resume.candidate_email = parsed_data.get("email")
             resume.candidate_phone = parsed_data.get("phone")
             resume.parse_error = None
+            resume.updated_at = datetime.now(timezone.utc)
 
             await db.commit()
             await db.refresh(resume)
@@ -74,6 +82,7 @@ async def run_parse_resume(resume_id: str, file_path: str, file_type: str):
             if resume:
                 resume.parse_status = ParseStatus.FAILED
                 resume.parse_error = str(e)
+                resume.updated_at = datetime.now(timezone.utc)
                 await db.commit()
 
                 # Also mark analysis as failed

@@ -13,7 +13,7 @@ test.describe('Reanalysis Flow', () => {
 
   test('re-analyze resumes after updating job criteria', async ({ request }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `重分析岗位_${Date.now()}`, 'active');
+    const job = await createJobViaAPI(token, `算法工程师（重新分析验证）-${Date.now()}`, 'active');
     await uploadSampleResume(request, token, job.id);
     const [analysis] = await waitForCompletedAnalysis(request, token, job.id);
 
@@ -40,8 +40,8 @@ test.describe('Reanalysis Flow', () => {
 
   test('analysis comparison across different job criteria', async ({ page, request }) => {
     const token = await getAuthToken();
-    const firstJob = await createJobViaAPI(token, `对比岗位A_${Date.now()}`, 'active');
-    const secondJob = await createJobViaAPI(token, `对比岗位B_${Date.now()}`, 'active');
+    const firstJob = await createJobViaAPI(token, `后端开发工程师（对比验证 A）-${Date.now()}`, 'active');
+    const secondJob = await createJobViaAPI(token, `全栈开发工程师（对比验证 B）-${Date.now()}`, 'active');
 
     await uploadSampleResume(request, token, firstJob.id, `compare-a-${Date.now()}.pdf`);
     await uploadSampleResume(request, token, secondJob.id, `compare-b-${Date.now()}.pdf`);
@@ -60,7 +60,7 @@ test.describe('Reanalysis Flow', () => {
 
   test('retry analysis endpoint requeues a completed analysis', async ({ request }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `重试分析_${Date.now()}`, 'active');
+    const job = await createJobViaAPI(token, `算法工程师（重试分析验证）-${Date.now()}`, 'active');
     await uploadSampleResume(request, token, job.id);
     const [analysis] = await waitForCompletedAnalysis(request, token, job.id);
 

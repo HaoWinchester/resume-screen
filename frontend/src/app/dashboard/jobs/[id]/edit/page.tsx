@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Form,
@@ -26,7 +26,15 @@ import {
   fetchJobTemplates,
   createJobTemplate as apiCreateJobTemplate,
 } from '@/lib/api/job';
+import { createJobSkillOption, fetchJobSkillOptions } from '@/lib/api/jobSkillOption';
 import { resolveWeightConfig, weightOptions } from '@/config/jobOptions';
+import {
+  getBuiltinJobSkillOptions,
+  inferJobSkillCategory,
+  mergeSkillOptions,
+  toSelectOptions,
+  type JobSkillOptionType,
+} from '@/lib/jobSkillCatalog';
 import type { Criteria, JobRequirement } from '@/types/job';
 
 const { TextArea } = Input;
@@ -48,17 +56,22 @@ export default function EditJobPage() {
   const [bonusSkills, setBonusSkills] = useState<string[]>([]);
   const [industryPreference, setIndustryPreference] = useState<string[]>([]);
   const [languages, setLanguages] = useState<string[]>([]);
-  const [skillInput, setSkillInput] = useState('');
-  const [bonusSkillInput, setBonusSkillInput] = useState('');
   const [industryInput, setIndustryInput] = useState('');
   const [languageInput, setLanguageInput] = useState('');
+  const [customRequiredOptions, setCustomRequiredOptions] = useState<string[]>([]);
+  const [customBonusOptions, setCustomBonusOptions] = useState<string[]>([]);
+  const watchedTitle = Form.useWatch('title', form) as string | undefined;
+  const jobSkillCategory = useMemo(() => inferJobSkillCategory(watchedTitle || jobData?.title), [jobData?.title, watchedTitle]);
+  const requiredSkillOptions = useMemo(
+    () => toSelectOptions(mergeSkillOptions(getBuiltinJobSkillOptions(jobSkillCategory, 'required'), customRequiredOptions, requiredSkills)),
+    [customRequiredOptions, jobSkillCategory, requiredSkills]
+  );
+  const bonusSkillOptions = useMemo(
+    () => toSelectOptions(mergeSkillOptions(getBuiltinJobSkillOptions(jobSkillCategory, 'bonus'), customBonusOptions, bonusSkills)),
+    [bonusSkills, customBonusOptions, jobSkillCategory]
+  );
 
-  useEffect(() => {
-    loadJobData();
-    loadTemplates();
-  }, [jobId]);
-
-  const loadJobData = async () => {
+  const loadJobData = useCallback(async () => {
     setFetchLoading(true);
     try {
       const data = await fetchJobRequirement(jobId);
@@ -85,16 +98,38 @@ export default function EditJobPage() {
     } finally {
       setFetchLoading(false);
     }
-  };
+  }, [form, jobId, router]);
 
-  const loadTemplates = async () => {
+  const loadTemplates = useCallback(async () => {
     try {
       const response = await fetchJobTemplates();
       setTemplates(response.items || []);
     } catch (error) {
       console.error('加载模板失败', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    void loadJobData();
+    void loadTemplates();
+  }, [loadJobData, loadTemplates]);
+
+  useEffect(() => {
+    const loadCustomOptions = async () => {
+      try {
+        const [required, bonus] = await Promise.all([
+          fetchJobSkillOptions({ job_type: jobSkillCategory, option_type: 'required' }),
+          fetchJobSkillOptions({ job_type: jobSkillCategory, option_type: 'bonus' }),
+        ]);
+        setCustomRequiredOptions(required.map((item) => item.value));
+        setCustomBonusOptions(bonus.map((item) => item.value));
+      } catch {
+        setCustomRequiredOptions([]);
+        setCustomBonusOptions([]);
+      }
+    };
+    void loadCustomOptions();
+  }, [jobSkillCategory]);
 
   const educationOptions = [
     { label: '不限', value: '' },
@@ -108,26 +143,48 @@ export default function EditJobPage() {
   const commonIndustries = ['互联网', '金融', '教育', '医疗', '制造业', '零售', '房地产'];
   const commonLanguages = ['中文', '英语', '日语', '韩语'];
 
-  const handleAddSkill = () => {
-    if (skillInput && !requiredSkills.includes(skillInput)) {
-      setRequiredSkills([...requiredSkills, skillInput]);
-      setSkillInput('');
-    }
-  };
-
   const handleRemoveSkill = (skill: string) => {
     setRequiredSkills(requiredSkills.filter((s) => s !== skill));
   };
 
-  const handleAddBonusSkill = () => {
-    if (bonusSkillInput && !bonusSkills.includes(bonusSkillInput)) {
-      setBonusSkills([...bonusSkills, bonusSkillInput]);
-      setBonusSkillInput('');
+  const handleRemoveBonusSkill = (skill: string) => {
+    setBonusSkills(bonusSkills.filter((s) => s !== skill));
+  };
+
+  const persistCustomSkillOptions = async (optionType: JobSkillOptionType, values: string[]) => {
+    const builtin = getBuiltinJobSkillOptions(jobSkillCategory, optionType);
+    const custom = optionType === 'required' ? customRequiredOptions : customBonusOptions;
+    const current = optionType === 'required' ? requiredSkills : bonusSkills;
+    const nextValues = mergeSkillOptions(values).filter((value) => !builtin.includes(value) && !custom.includes(value) && !current.includes(value));
+    if (nextValues.length === 0) return;
+
+    try {
+      const saved = await Promise.all(
+        nextValues.map((value) => createJobSkillOption({ job_type: jobSkillCategory, option_type: optionType, value }))
+      );
+      const savedValues = saved.map((item) => item.value);
+      if (optionType === 'required') {
+        setCustomRequiredOptions((prev) => mergeSkillOptions(prev, savedValues));
+      } else {
+        setCustomBonusOptions((prev) => mergeSkillOptions(prev, savedValues));
+      }
+    } catch {
+      message.warning('自定义选项已加入当前岗位，但保存到账户失败，请稍后重试');
     }
   };
 
-  const handleRemoveBonusSkill = (skill: string) => {
-    setBonusSkills(bonusSkills.filter((s) => s !== skill));
+  const handleRequiredSkillsChange = (values: string[]) => {
+    const normalized = mergeSkillOptions(values);
+    const previous = requiredSkills;
+    setRequiredSkills(normalized);
+    void persistCustomSkillOptions('required', normalized.filter((value) => !previous.includes(value)));
+  };
+
+  const handleBonusSkillsChange = (values: string[]) => {
+    const normalized = mergeSkillOptions(values);
+    const previous = bonusSkills;
+    setBonusSkills(normalized);
+    void persistCustomSkillOptions('bonus', normalized.filter((value) => !previous.includes(value)));
   };
 
   const handleAddIndustry = () => {
@@ -238,10 +295,10 @@ export default function EditJobPage() {
     try {
       setLoading(true);
       await activateJobRequirement(jobId);
-      message.success('岗位已激活');
+      message.success('已开始招聘');
       router.push('/dashboard/jobs');
     } catch (error) {
-      message.error('激活失败');
+      message.error('开始招聘失败，请确认岗位筛选条件完整');
     } finally {
       setLoading(false);
     }
@@ -267,8 +324,8 @@ export default function EditJobPage() {
           {jobData && jobData.status !== 'draft' && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded">
               <p className="text-sm text-yellow-800">
-                注意: 此岗位当前状态为 <strong>{jobData.status === 'active' ? '进行中' : '已关闭'}</strong>
-                ，编辑后不会自动激活。
+                注意: 此岗位当前状态为 <strong>{jobData.status === 'active' ? '招聘中' : '已结束'}</strong>
+                ，编辑后不会自动开始招聘。
               </p>
             </div>
           )}
@@ -282,17 +339,16 @@ export default function EditJobPage() {
           {/* 必备技能 */}
           <div className="mb-6">
             <label className="block mb-2 font-medium">必备技能</label>
-            <div className="flex gap-2 mb-2">
-              <Input
-                placeholder="输入技能名称，如 React"
-                value={skillInput}
-                onChange={(e) => setSkillInput(e.target.value)}
-                onPressEnter={handleAddSkill}
-              />
-              <Button onClick={handleAddSkill} icon={<PlusOutlined />}>
-                添加
-              </Button>
-            </div>
+            <Select
+              mode="tags"
+              value={requiredSkills}
+              onChange={handleRequiredSkillsChange}
+              tokenSeparators={[',', '，']}
+              placeholder="根据岗位推荐技能，也可以直接输入新技能"
+              options={requiredSkillOptions}
+              className="mb-2 w-full"
+            />
+            <p className="mb-3 text-xs text-slate-500">当前按“{jobSkillCategory}”推荐；自定义技能会保存到当前账号。</p>
             <div className="flex flex-wrap gap-2">
               {requiredSkills.map((skill) => (
                 <Tag key={skill} closable onClose={() => handleRemoveSkill(skill)} color="blue">
@@ -305,17 +361,16 @@ export default function EditJobPage() {
           {/* 加分技能 */}
           <div className="mb-6">
             <label className="block mb-2 font-medium">加分技能</label>
-            <div className="flex gap-2 mb-2">
-              <Input
-                placeholder="输入技能名称"
-                value={bonusSkillInput}
-                onChange={(e) => setBonusSkillInput(e.target.value)}
-                onPressEnter={handleAddBonusSkill}
-              />
-              <Button onClick={handleAddBonusSkill} icon={<PlusOutlined />}>
-                添加
-              </Button>
-            </div>
+            <Select
+              mode="tags"
+              value={bonusSkills}
+              onChange={handleBonusSkillsChange}
+              tokenSeparators={[',', '，']}
+              placeholder="根据岗位推荐关键词，也可以直接输入新关键词"
+              options={bonusSkillOptions}
+              className="mb-2 w-full"
+            />
+            <p className="mb-3 text-xs text-slate-500">自定义加分技能会绑定当前账号，后续同类岗位可继续选择。</p>
             <div className="flex flex-wrap gap-2">
               {bonusSkills.map((skill) => (
                 <Tag key={skill} closable onClose={() => handleRemoveBonusSkill(skill)} color="green">
@@ -491,7 +546,7 @@ export default function EditJobPage() {
                 <Button onClick={() => router.push('/dashboard/jobs')}>取消</Button>
                 {jobData?.status === 'draft' && (
                   <Button type="primary" onClick={handleActivate} loading={loading}>
-                    保存并激活
+                    保存并开始招聘
                   </Button>
                 )}
                 <Button type="primary" onClick={handleSubmit} loading={loading}>

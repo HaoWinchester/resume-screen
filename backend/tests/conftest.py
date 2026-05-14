@@ -145,7 +145,13 @@ async def _create_user_with_company(
     role: UserRole = UserRole.ADMIN,
     is_active: bool = True,
 ) -> tuple[Company, User]:
-    company = Company(name=company_name, industry="Technology")
+    company = Company(
+        name=company_name,
+        industry="Technology",
+        contact_name="HR Talent",
+        contact_phone="13800000000",
+        contact_email="hr@example.com",
+    )
     session.add(company)
     await session.flush()
 
@@ -182,7 +188,13 @@ def _make_auth_headers(user: User, auth_service: AuthService) -> dict[str, str]:
 
 @pytest_asyncio.fixture
 async def test_company(db_session: AsyncSession) -> Company:
-    company = Company(name="Test Company", industry="Technology")
+    company = Company(
+        name="Test Company",
+        industry="Technology",
+        contact_name="HR Talent",
+        contact_phone="13800000000",
+        contact_email="hr@example.com",
+    )
     db_session.add(company)
     await db_session.commit()
     await db_session.refresh(company)

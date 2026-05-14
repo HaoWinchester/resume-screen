@@ -37,6 +37,7 @@ export default function ResumeUploadPage() {
   const [scanMode, setScanMode] = useState<'standard' | 'deep'>('standard');
   const [loadingJobs, setLoadingJobs] = useState(true);
   const [recentResumes, setRecentResumes] = useState<ResumeListItem[]>([]);
+  const [recentResumeTotal, setRecentResumeTotal] = useState(0);
   const [uploadResult, setUploadResult] = useState<{
     uploaded: any[];
     failed: any[];
@@ -73,8 +74,10 @@ export default function ResumeUploadPage() {
     try {
       const response = await fetchResumes({ job_requirement_id: jobId, page: 1, per_page: 4 });
       setRecentResumes(response.items);
+      setRecentResumeTotal(response.total);
     } catch {
       setRecentResumes([]);
+      setRecentResumeTotal(0);
     }
   };
 
@@ -235,7 +238,13 @@ export default function ResumeUploadPage() {
             ) : (
               <div className="divide-y divide-slate-100">
                 {fileList.map((file) => (
-                  <UploadRow key={file.uid} file={file} uploading={uploading} onRemove={() => setFileList((prev) => prev.filter((item) => item.uid !== file.uid))} />
+                  <UploadRow
+                    key={file.uid}
+                    file={file}
+                    uploading={uploading}
+                    uploadProgress={uploadProgress}
+                    onRemove={() => setFileList((prev) => prev.filter((item) => item.uid !== file.uid))}
+                  />
                 ))}
               </div>
             )}
@@ -318,13 +327,20 @@ export default function ResumeUploadPage() {
           </div>
 
           <div className="rounded-xl border border-slate-200 bg-white p-8 shadow-sm">
-            <h2 className="font-black">系统统计</h2>
+            <h2 className="font-black">当前岗位数据</h2>
             <div className="mt-6 flex justify-between text-lg font-black">
-              <span>每月额度</span>
-              <span>840 / 1,000</span>
+              <span>简历总数</span>
+              <span>{recentResumeTotal}</span>
             </div>
-            <Progress percent={84} showInfo={false} strokeColor="#10b981" className="mt-4" />
-            <p className="mt-4 text-sm text-slate-500">额度将在 12 天后重置。需要更多？</p>
+            <Progress
+              percent={recentResumeTotal > 0 ? Math.round((recentResumes.length / recentResumeTotal) * 100) : 0}
+              showInfo={false}
+              strokeColor="#10b981"
+              className="mt-4"
+            />
+            <p className="mt-4 text-sm text-slate-500">
+              最近显示 {recentResumes.length} 份真实上传记录，完整列表可在候选人结果页查看。
+            </p>
           </div>
         </aside>
       </section>
@@ -360,7 +376,7 @@ export default function ResumeUploadPage() {
   );
 }
 
-function UploadRow({ file, uploading, onRemove }: { file: FileItem; uploading: boolean; onRemove: () => void }) {
+function UploadRow({ file, uploading, uploadProgress, onRemove }: { file: FileItem; uploading: boolean; uploadProgress: number; onRemove: () => void }) {
   const size = file.size ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : '待上传';
 
   if (file.status === 'done') {
@@ -371,7 +387,7 @@ function UploadRow({ file, uploading, onRemove }: { file: FileItem; uploading: b
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-semibold">{file.name}</p>
-          <p className="text-sm text-slate-500">{size} · 2 分钟前上传</p>
+          <p className="text-sm text-slate-500">{size} · 已提交解析</p>
         </div>
         <span className="font-bold text-emerald-700">成功</span>
         <MaterialIcon name="visibility" className="text-xl text-slate-400" />
@@ -403,10 +419,10 @@ function UploadRow({ file, uploading, onRemove }: { file: FileItem; uploading: b
       <div className="min-w-0 flex-1">
         <div className="mb-2 flex justify-between gap-3">
           <p className="truncate font-semibold">{file.name}</p>
-          <span className="text-sm font-bold text-[#00288e]">{uploading ? '75%' : '待解析'}</span>
+          <span className="text-sm font-bold text-[#00288e]">{uploading ? `${uploadProgress}%` : '待上传'}</span>
         </div>
-        <Progress percent={uploading ? 75 : 0} showInfo={false} strokeColor="#00288e" size="small" />
-        <p className="mt-2 text-sm text-slate-500">{size} · 解析中</p>
+        <Progress percent={uploading ? uploadProgress : 0} showInfo={false} strokeColor="#00288e" size="small" />
+        <p className="mt-2 text-sm text-slate-500">{size} · {uploading ? '正在提交' : '等待开始解析'}</p>
       </div>
       <Button type="text" icon={<MaterialIcon name="close" className="text-xl" />} disabled={uploading} onClick={onRemove} />
     </div>

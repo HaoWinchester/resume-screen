@@ -137,7 +137,7 @@ test.describe('Analysis Dashboard Page', () => {
 
     const token = await getAuthToken();
     const timestamp = Date.now();
-    const job = await createJobViaAPI(token, `分析删除_${timestamp}`, 'active');
+    const job = await createJobViaAPI(token, `前端开发工程师（报告删除验证）-${timestamp}`, 'active');
     const fileName = `analysis-delete-${timestamp}.pdf`;
     const upload = await uploadSampleResume(request, token, job.id, fileName);
     const resumeId = upload.uploaded[0].id;

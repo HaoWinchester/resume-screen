@@ -16,6 +16,9 @@ class Company(Base):
     )
     name: Mapped[str] = mapped_column(String(200), unique=True, nullable=False, index=True)
     industry: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contact_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    contact_phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    contact_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc)

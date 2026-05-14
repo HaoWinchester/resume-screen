@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     AI_PROVIDER: str = "auto"  # auto, local, zhipu, openai, anthropic
     AI_PROVIDER_ORDER: str = "zhipu,openai,anthropic"
     AI_ENABLE_LOCAL_FALLBACK: bool = True
+    AI_RESUME_PARSER_ENABLED: bool = True
+    AI_RESUME_PARSER_PROVIDER: str = "auto"  # auto, local, zhipu, openai, anthropic
+    AI_RESUME_PARSER_PROVIDER_ORDER: str = "zhipu,openai,anthropic"
+    ANTHROPIC_RESUME_PARSER_MODEL: str = "claude-opus-4-7"
+    OPENAI_RESUME_PARSER_MODEL: str = "gpt-4o"
+    AGENT_TEAM_AUTO_RUN_ENABLED: bool = True
 
     # File Storage
     UPLOAD_DIR: str = "uploads"
@@ -43,6 +49,23 @@ class Settings(BaseSettings):
     CELERY_RESULT_BACKEND: str = "redis://localhost:6379/2"
     TASK_EXECUTION_MODE: str = "local"  # local, celery, auto
     LOCAL_TASK_MAX_WORKERS: int = 2
+
+    # Email delivery. Use EMAIL_DELIVERY_MODE=smtp with SMTP_* values to send
+    # real emails; console mode prints the composed message in local dev.
+    EMAIL_DELIVERY_MODE: str = "console"  # console, smtp
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USERNAME: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM_EMAIL: str = ""
+    SMTP_FROM_NAME: str = "HR Talent"
+    SMTP_USE_TLS: bool = True
+    SMTP_USE_SSL: bool = False
+
+    # Interview reminders are generated when an interview is scheduled and
+    # dispatched by a lightweight in-process worker while the API is running.
+    INTERVIEW_REMINDER_WORKER_ENABLED: bool = True
+    INTERVIEW_REMINDER_POLL_SECONDS: int = 60
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

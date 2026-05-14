@@ -15,7 +15,7 @@ test.describe('Full Happy Path E2E', () => {
     const userEmail = faker.internet.email();
     const companyName = faker.company.name();
     const userPassword = TEST_PASSWORD;
-    const jobTitle = `高级前端工程师_${Date.now()}`;
+    const jobTitle = `高级前端工程师（完整流程验证）-${Date.now()}`;
 
     await page.getByPlaceholder(/您的姓名/).fill(userName);
     await page.getByPlaceholder(/公司名称/).fill(companyName);

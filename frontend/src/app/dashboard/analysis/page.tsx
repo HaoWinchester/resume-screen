@@ -1,13 +1,22 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import { Button, Dropdown, Popconfirm, Select, Space, Spin, Table, Tag, message } from 'antd';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { Button, Dropdown, Input, Modal, Popconfirm, Select, Space, Spin, Table, Tag, Tooltip, message } from 'antd';
 import type { ColumnsType, TableProps } from 'antd/es/table';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getErrorMessage } from '@/lib/api';
 import { deleteResume } from '@/lib/api/resume';
 import { exportAnalysis, fetchAnalysisList } from '@/lib/api/analysis';
+import {
+  addCandidateWorkflowNote,
+  fetchCandidateWorkflows,
+  markCandidatePriority,
+  scheduleCandidateInterview,
+  workflowStatusLabel,
+} from '@/lib/api/candidateWorkflow';
 import { fetchJobRequirements } from '@/lib/api/job';
 import type { AnalysisListItem, AnalysisStatistics, DimensionType, RecommendationLevel } from '@/types/analysis';
+import type { CandidateWorkflowItem } from '@/types/candidateWorkflow';
 import type { JobRequirementListItem } from '@/types/job';
 
 function MaterialIcon({ name, className = '', fill = false }: { name: string; className?: string; fill?: boolean }) {
@@ -48,6 +57,11 @@ function dimensionLabel(dimension: DimensionType) {
   return labels[dimension];
 }
 
+function parseRecommendationFilter(value: string | null): RecommendationLevel | 'all' {
+  if (value === 'strongly_recommended' || value === 'recommended' || value === 'pending') return value;
+  return 'all';
+}
+
 export default function AnalysisPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -57,32 +71,21 @@ export default function AnalysisPage() {
   const [analyses, setAnalyses] = useState<AnalysisListItem[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<AnalysisListItem | null>(null);
   const [statistics, setStatistics] = useState<AnalysisStatistics | null>(null);
+  const [workflowMap, setWorkflowMap] = useState<Record<string, CandidateWorkflowItem>>({});
   const [loading, setLoading] = useState(false);
-  const [recommendationFilter, setRecommendationFilter] = useState<RecommendationLevel | 'all'>('all');
+  const [recommendationFilter, setRecommendationFilter] = useState<RecommendationLevel | 'all'>(() => parseRecommendationFilter(searchParams.get('recommendation')));
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [interviewCandidate, setInterviewCandidate] = useState<AnalysisListItem | null>(null);
+  const [interviewTime, setInterviewTime] = useState('');
+  const [interviewEmail, setInterviewEmail] = useState('');
+  const [interviewLocation, setInterviewLocation] = useState('');
+  const [interviewNote, setInterviewNote] = useState('');
+  const [noteCandidate, setNoteCandidate] = useState<AnalysisListItem | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [compareIds, setCompareIds] = useState<string[]>([]);
+  const { current: currentPage, pageSize } = pagination;
 
-  useEffect(() => {
-    void loadJobs();
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!selectedJobId) return;
-    void loadAnalyses();
-    startAutoRefresh();
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-    };
-  }, [selectedJobId, recommendationFilter, pagination.current, pagination.pageSize]);
-
-  const loadJobs = async () => {
+  const loadJobs = useCallback(async () => {
     try {
       const response = await fetchJobRequirements({ status: 'active', per_page: 100 });
       const sortedJobs = [...response.items].sort((a, b) => {
@@ -104,18 +107,9 @@ export default function AnalysisPage() {
     } catch {
       message.error('加载岗位列表失败');
     }
-  };
+  }, [searchParams]);
 
-  const startAutoRefresh = () => {
-    if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    intervalRef.current = setInterval(() => {
-      void loadAnalyses(true);
-    }, 5000);
-  };
-
-  const loadAnalyses = async (silent = false) => {
+  const loadAnalyses = useCallback(async (silent = false) => {
     if (!selectedJobId) return;
     if (!silent) setLoading(true);
 
@@ -125,12 +119,17 @@ export default function AnalysisPage() {
         sort_by: 'overall_score',
         sort_order: 'desc',
         recommendation: recommendationFilter !== 'all' ? recommendationFilter : undefined,
-        page: pagination.current,
-        per_page: pagination.pageSize,
+        page: currentPage,
+        per_page: pageSize,
       });
       setAnalyses(response.items);
+      setCompareIds((current) => current.filter((id) => response.items.some((item) => item.id === id)));
       setStatistics(response.statistics);
       setPagination({ current: response.page, pageSize: response.per_page, total: response.total });
+      const workflowResponse = response.items.length
+        ? await fetchCandidateWorkflows({ analysis_ids: response.items.map((item) => item.id) })
+        : { items: [] };
+      setWorkflowMap(Object.fromEntries(workflowResponse.items.map((item) => [item.analysis_id, item])));
       setSelectedCandidate((current) => {
         if (current && response.items.some((item) => item.id === current.id)) {
           return current;
@@ -147,7 +146,42 @@ export default function AnalysisPage() {
     } finally {
       if (!silent) setLoading(false);
     }
-  };
+  }, [currentPage, pageSize, recommendationFilter, selectedJobId]);
+
+  const startAutoRefresh = useCallback(() => {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    intervalRef.current = setInterval(() => {
+      void loadAnalyses(true);
+    }, 5000);
+  }, [loadAnalyses]);
+
+  useEffect(() => {
+    void loadJobs();
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [loadJobs]);
+
+  useEffect(() => {
+    setRecommendationFilter(parseRecommendationFilter(searchParams.get('recommendation')));
+    setPagination((prev) => ({ ...prev, current: 1 }));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!selectedJobId) return;
+    void loadAnalyses();
+    startAutoRefresh();
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+    };
+  }, [loadAnalyses, selectedJobId, startAutoRefresh]);
 
   const handleExport = async (format: 'xlsx' | 'csv') => {
     if (!selectedJobId) {
@@ -175,6 +209,68 @@ export default function AnalysisPage() {
     }
   };
 
+  const updateWorkflow = (workflow: CandidateWorkflowItem) => {
+    setWorkflowMap((prev) => ({ ...prev, [workflow.analysis_id]: workflow }));
+  };
+
+  const handleMarkPriority = async (record: AnalysisListItem) => {
+    try {
+      const workflow = await markCandidatePriority(record.id, 'HR 手动加入优先沟通名单');
+      updateWorkflow(workflow);
+      message.success(`${candidateLabel(record)} 已加入优先沟通名单`);
+    } catch {
+      message.error('加入优先沟通失败');
+    }
+  };
+
+  const handleScheduleInterview = async () => {
+    if (!interviewCandidate) return;
+    if (!interviewTime) {
+      message.warning('请选择面试时间');
+      return;
+    }
+    if (!interviewLocation.trim()) {
+      message.warning('请填写面试地点或会议链接');
+      return;
+    }
+    try {
+      const workflow = await scheduleCandidateInterview({
+        analysisId: interviewCandidate.id,
+        scheduled_at: new Date(interviewTime).toISOString(),
+        mode: 'online',
+        location: interviewLocation.trim(),
+        note: interviewNote.trim() || undefined,
+        candidate_email: interviewEmail.trim() || undefined,
+      });
+      updateWorkflow(workflow);
+      message.success(workflow.email_delivery_message || `${candidateLabel(interviewCandidate)} 的面试已安排，通知已发送`);
+      setInterviewCandidate(null);
+      setInterviewTime('');
+      setInterviewEmail('');
+      setInterviewLocation('');
+      setInterviewNote('');
+    } catch (error) {
+      message.error(getErrorMessage(error) || '安排面试失败');
+    }
+  };
+
+  const handleAddNote = async () => {
+    if (!noteCandidate) return;
+    if (!noteText.trim()) {
+      message.warning('请填写备注内容');
+      return;
+    }
+    try {
+      const workflow = await addCandidateWorkflowNote(noteCandidate.id, noteText.trim());
+      updateWorkflow(workflow);
+      message.success('备注已保存');
+      setNoteCandidate(null);
+      setNoteText('');
+    } catch {
+      message.error('保存备注失败');
+    }
+  };
+
   const handleDeleteResume = async (record: AnalysisListItem) => {
     try {
       await deleteResume(record.resume_id);
@@ -193,12 +289,25 @@ export default function AnalysisPage() {
     });
   };
 
+  const handleCompare = () => {
+    if (compareIds.length < 2) {
+      message.warning('请至少勾选 2 位候选人进行对比');
+      return;
+    }
+    if (compareIds.length > 3) {
+      message.warning('最多只能对比 3 位候选人');
+      return;
+    }
+    router.push(`/dashboard/analysis/compare?ids=${compareIds.join(',')}`);
+  };
+
   const selectedJob = jobs.find((job) => job.id === selectedJobId);
   const minScore = analyses.length > 0 ? Math.min(...analyses.map((item) => Math.round(item.overall_score))) : 85;
   const skillDetails = selectedCandidate?.dimension_scores.find((item) => item.dimension === 'skill_match')?.match_details;
   const experienceDetails = selectedCandidate?.dimension_scores.find((item) => item.dimension === 'experience_match')?.match_details;
   const topSkill = skillDetails?.matched_skills?.[0] || skillDetails?.bonus_skills_matched?.[0] || '暂无';
   const experienceYears = typeof experienceDetails?.years_of_experience === 'number' ? experienceDetails.years_of_experience : null;
+  const recommendationText = selectedCandidate ? recommendationTextOf(selectedCandidate.recommendation) : '待确认';
 
   const columns: ColumnsType<AnalysisListItem> = [
     {
@@ -261,20 +370,26 @@ export default function AnalysisPage() {
       width: 120,
       render: (_, record) => (
         <Space size={4}>
-          <Button type="text" icon={<MaterialIcon name="grade" className="text-[#00288e]" fill />} onClick={() => message.success(`${candidateLabel(record)} 已加入短名单`)} />
-          <Popconfirm
-            title="删除这份简历？"
-            description="会同时移除对应分析结果，操作不可恢复。"
-            okText="删除"
-            cancelText="取消"
-            okButtonProps={{ danger: true }}
-            onConfirm={() => handleDeleteResume(record)}
-          >
-            <Button type="text" danger icon={<MaterialIcon name="block" />} />
-          </Popconfirm>
-          <Button type="primary" className="rounded-lg bg-[#00288e] px-3 text-xs font-bold" onClick={() => router.push(`/dashboard/analysis/${record.id}`)}>
-            查看
-          </Button>
+          <Tooltip title="加入优先沟通名单">
+            <Button type="text" icon={<MaterialIcon name="grade" className="text-[#00288e]" fill />} onClick={() => handleMarkPriority(record)} />
+          </Tooltip>
+          <Tooltip title="删除简历与分析结果">
+            <Popconfirm
+              title="删除这份简历？"
+              description="会同时移除对应分析结果，操作不可恢复。"
+              okText="删除"
+              cancelText="取消"
+              okButtonProps={{ danger: true }}
+              onConfirm={() => handleDeleteResume(record)}
+            >
+              <Button type="text" danger icon={<MaterialIcon name="block" />} />
+            </Popconfirm>
+          </Tooltip>
+          <Tooltip title="查看完整分析详情">
+            <Button type="primary" className="rounded-lg bg-[#00288e] px-3 text-xs font-bold" onClick={() => router.push(`/dashboard/analysis/${record.id}`)}>
+              查看
+            </Button>
+          </Tooltip>
         </Space>
       ),
     },
@@ -295,6 +410,7 @@ export default function AnalysisPage() {
             onChange={(value) => {
               setSelectedJobId(value);
               setSelectedCandidate(null);
+              setCompareIds([]);
               setPagination((prev) => ({ ...prev, current: 1 }));
               router.replace(`/dashboard/analysis?job=${value}`);
             }}
@@ -329,6 +445,18 @@ export default function AnalysisPage() {
           >
             导出 CSV
           </Dropdown.Button>
+          <Tooltip title={compareIds.length < 2 ? '先在表格左侧勾选 2-3 位候选人' : `已选择 ${compareIds.length} 位候选人`}>
+            <Button
+              type="primary"
+              ghost
+              className="h-12 rounded-lg px-5 font-bold"
+              icon={<MaterialIcon name="compare_arrows" className="text-[20px]" />}
+              disabled={compareIds.length < 2}
+              onClick={handleCompare}
+            >
+              对比候选人{compareIds.length ? ` (${compareIds.length})` : ''}
+            </Button>
+          </Tooltip>
         </div>
       </section>
 
@@ -336,7 +464,7 @@ export default function AnalysisPage() {
         <Metric label="最低分值" value={`${minScore}%`} icon={<MaterialIcon name="trending_up" />} tone="primary" />
         <Metric label="工作经验" value={experienceYears !== null ? `${experienceYears}年` : '待确认'} icon={<MaterialIcon name="work_history" />} />
         <Metric label="核心技能" value={topSkill} icon={<MaterialIcon name="verified" />} />
-        <Metric label="工作地点" value="远程办公" icon={<MaterialIcon name="public" />} />
+        <Metric label="推荐等级" value={recommendationText} icon={<MaterialIcon name="workspace_premium" />} />
       </section>
 
       <section className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
@@ -347,6 +475,14 @@ export default function AnalysisPage() {
             dataSource={analyses}
             rowKey="id"
             loading={loading}
+            rowSelection={{
+              selectedRowKeys: compareIds,
+              preserveSelectedRowKeys: false,
+              onChange: (keys) => setCompareIds(keys.map(String)),
+              getCheckboxProps: (record) => ({
+                disabled: compareIds.length >= 3 && !compareIds.includes(record.id),
+              }),
+            }}
             pagination={pagination}
             onChange={handleTableChange}
             scroll={{ x: 660 }}
@@ -357,14 +493,78 @@ export default function AnalysisPage() {
 
         <CandidatePreview
           candidate={selectedCandidate}
+          workflow={selectedCandidate ? workflowMap[selectedCandidate.id] : undefined}
           onClose={() => setSelectedCandidate(null)}
           onView={() => {
             if (selectedCandidate) router.push(`/dashboard/analysis/${selectedCandidate.id}`);
           }}
+          onOpenInterview={() => {
+            if (!selectedCandidate) return;
+            setInterviewCandidate(selectedCandidate);
+            setInterviewEmail(selectedCandidate.candidate_email || workflowMap[selectedCandidate.id]?.candidate_email || '');
+          }}
+          onOpenNote={() => {
+            if (!selectedCandidate) return;
+            setNoteCandidate(selectedCandidate);
+            setNoteText(workflowMap[selectedCandidate.id]?.note || '');
+          }}
         />
       </section>
+
+      <Modal
+        title={`安排面试${interviewCandidate ? `：${candidateLabel(interviewCandidate)}` : ''}`}
+        open={!!interviewCandidate}
+        onOk={handleScheduleInterview}
+        onCancel={() => {
+          setInterviewCandidate(null);
+          setInterviewEmail('');
+        }}
+        okText="保存面试安排"
+        cancelText="取消"
+      >
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-700">面试时间</span>
+            <input
+              type="datetime-local"
+              value={interviewTime}
+              onChange={(event) => setInterviewTime(event.target.value)}
+              className="h-10 w-full rounded-lg border border-slate-200 px-3"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-700">候选人邮箱</span>
+            <Input type="email" value={interviewEmail} onChange={(event) => setInterviewEmail(event.target.value)} placeholder="没有邮箱时请在这里输入，用于发送面试通知" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-700">面试地点 / 会议链接</span>
+            <Input value={interviewLocation} onChange={(event) => setInterviewLocation(event.target.value)} placeholder="例如：腾讯会议链接 / 公司会议室 A" />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-sm font-bold text-slate-700">面试备注</span>
+            <Input.TextArea value={interviewNote} onChange={(event) => setInterviewNote(event.target.value)} rows={4} placeholder="记录面试重点、注意事项或候选人偏好" />
+          </label>
+        </div>
+      </Modal>
+
+      <Modal
+        title={`添加备注${noteCandidate ? `：${candidateLabel(noteCandidate)}` : ''}`}
+        open={!!noteCandidate}
+        onOk={handleAddNote}
+        onCancel={() => setNoteCandidate(null)}
+        okText="保存备注"
+        cancelText="取消"
+      >
+        <Input.TextArea value={noteText} onChange={(event) => setNoteText(event.target.value)} rows={5} placeholder="记录沟通结论、候选人意向、风险点或下一步动作" />
+      </Modal>
     </div>
   );
+}
+
+function recommendationTextOf(level: RecommendationLevel) {
+  if (level === 'strongly_recommended') return '强推荐';
+  if (level === 'recommended') return '可沟通';
+  return '待确认';
 }
 
 function Metric({ label, value, icon, tone }: { label: string; value: string; icon: React.ReactNode; tone?: 'primary' }) {
@@ -379,7 +579,21 @@ function Metric({ label, value, icon, tone }: { label: string; value: string; ic
   );
 }
 
-function CandidatePreview({ candidate, onClose, onView }: { candidate: AnalysisListItem | null; onClose: () => void; onView: () => void }) {
+function CandidatePreview({
+  candidate,
+  workflow,
+  onClose,
+  onView,
+  onOpenInterview,
+  onOpenNote,
+}: {
+  candidate: AnalysisListItem | null;
+  workflow?: CandidateWorkflowItem;
+  onClose: () => void;
+  onView: () => void;
+  onOpenInterview: () => void;
+  onOpenNote: () => void;
+}) {
   if (!candidate) {
     return (
       <aside className="rounded-xl border border-slate-200 bg-white p-10 text-center shadow-sm">
@@ -422,8 +636,12 @@ function CandidatePreview({ candidate, onClose, onView }: { candidate: AnalysisL
       </div>
 
       <div className="mt-8 divide-y divide-slate-100">
+        <PreviewRow label="跟进状态" value={workflowStatusLabel(workflow?.status)} />
         <PreviewRow label="工作经历" value={experienceYears !== null ? `总计 ${experienceYears} 年` : '待确认'} />
         <PreviewRow label="教育背景" value={education >= 85 ? '硕士及以上' : '本科及以上'} />
+        {workflow?.interview_scheduled_at && (
+          <PreviewRow label="面试时间" value={new Date(workflow.interview_scheduled_at).toLocaleString()} />
+        )}
         <div className="flex items-center justify-between py-4">
           <span className="text-slate-700">技术匹配度</span>
           <span className="flex gap-1">
@@ -441,10 +659,10 @@ function CandidatePreview({ candidate, onClose, onView }: { candidate: AnalysisL
       </div>
 
       <div className="mt-8 grid grid-cols-2 gap-4">
-        <Button type="primary" className="h-14 rounded-lg bg-[#00288e] text-lg font-black" onClick={() => message.success('面试安排已加入待办')}>
+        <Button type="primary" className="h-14 rounded-lg bg-[#00288e] text-lg font-black" onClick={onOpenInterview}>
           安排面试
         </Button>
-        <Button className="h-14 rounded-lg text-lg font-black" onClick={() => message.info('备注功能已记录在候选人跟进流程中')}>
+        <Button className="h-14 rounded-lg text-lg font-black" onClick={onOpenNote}>
           添加备注
         </Button>
       </div>

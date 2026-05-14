@@ -1,6 +1,7 @@
 """Tests for the /api/v1/resumes endpoints."""
 
 import uuid
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 
 import pytest
@@ -221,6 +222,51 @@ class TestListResumes:
         for item in body["items"]:
             assert item["parse_status"] == "success"
 
+    async def test_list_resumes_orders_by_recent_processing_time(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        db_session,
+        sample_job: JobRequirement,
+        test_user,
+    ):
+        old_resume = Resume(
+            job_requirement_id=sample_job.id,
+            file_name="old_resume.pdf",
+            file_path="/tmp/old_resume.pdf",
+            file_type=ResumeFileType.PDF,
+            file_size=1024,
+            parse_status=ParseStatus.SUCCESS,
+            candidate_name="旧简历",
+            parsed_data={"name": "旧简历"},
+            uploaded_by=test_user.id,
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc) - timedelta(days=1),
+        )
+        retried_resume = Resume(
+            job_requirement_id=sample_job.id,
+            file_name="retried_resume.pdf",
+            file_path="/tmp/retried_resume.pdf",
+            file_type=ResumeFileType.PDF,
+            file_size=1024,
+            parse_status=ParseStatus.PENDING,
+            uploaded_by=test_user.id,
+            created_at=datetime.now(timezone.utc) - timedelta(days=3),
+            updated_at=datetime.now(timezone.utc),
+        )
+        db_session.add_all([old_resume, retried_resume])
+        await db_session.commit()
+
+        resp = await async_client.get(
+            f"/api/v1/resumes?job_requirement_id={sample_job.id}&page=1&per_page=10",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert items[0]["id"] == str(retried_resume.id)
+        assert "updated_at" in items[0]
+
     async def test_list_resumes_falls_back_to_parsed_basic_info(
         self,
         async_client: AsyncClient,
@@ -259,16 +305,23 @@ class TestListResumes:
         assert item["candidate_name"] == "孟浩"
         assert item["candidate_phone"] == "18375312286"
 
-    async def test_list_resumes_missing_job_id(
+    async def test_list_resumes_without_job_id_returns_company_resumes(
         self,
         async_client: AsyncClient,
         auth_headers: dict,
+        sample_job: JobRequirement,
+        sample_resume: Resume,
     ):
         resp = await async_client.get(
             "/api/v1/resumes",
             headers=auth_headers,
         )
-        assert resp.status_code == 422
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] >= 1
+        item = next(item for item in body["items"] if item["id"] == str(sample_resume.id))
+        assert item["job_requirement_id"] == str(sample_job.id)
+        assert item["job_title"] == sample_job.title
 
 
 # ---------------------------------------------------------------------------
@@ -376,6 +429,60 @@ class TestRetryResumeParse:
         remaining_scores = await db_session.get(DimensionScore, dimension_score.id)
         assert remaining_scores is None
         mock_dispatch.assert_called_once()
+
+    async def test_retry_pending_resumes_batches_current_company(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        db_session,
+        sample_job: JobRequirement,
+        test_user,
+        mocker,
+    ):
+        mock_dispatch = mocker.patch("app.api.resumes.dispatch_resume_parse", return_value="local")
+        pending_resume = Resume(
+            job_requirement_id=sample_job.id,
+            file_name="pending_resume.pdf",
+            file_path="/tmp/pending_resume.pdf",
+            file_type=ResumeFileType.PDF,
+            file_size=1024,
+            parse_status=ParseStatus.PENDING,
+            parsed_data={"name": "旧姓名"},
+            candidate_name="旧姓名",
+            candidate_email="old@example.com",
+            candidate_phone="13800000000",
+            uploaded_by=test_user.id,
+        )
+        success_resume = Resume(
+            job_requirement_id=sample_job.id,
+            file_name="success_resume.pdf",
+            file_path="/tmp/success_resume.pdf",
+            file_type=ResumeFileType.PDF,
+            file_size=1024,
+            parse_status=ParseStatus.SUCCESS,
+            parsed_data={"name": "张三"},
+            candidate_name="张三",
+            uploaded_by=test_user.id,
+        )
+        db_session.add_all([pending_resume, success_resume])
+        await db_session.commit()
+
+        resp = await async_client.post(
+            "/api/v1/resumes/retry-pending",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 202
+        assert resp.json()["retried"] >= 1
+
+        await db_session.refresh(pending_resume)
+        await db_session.refresh(success_resume)
+
+        assert pending_resume.parse_status == ParseStatus.PENDING
+        assert pending_resume.parsed_data is None
+        assert pending_resume.candidate_name is None
+        assert success_resume.parsed_data == {"name": "张三"}
+        assert str(pending_resume.id) in {call.args[0] for call in mock_dispatch.call_args_list}
 
 
 # ---------------------------------------------------------------------------

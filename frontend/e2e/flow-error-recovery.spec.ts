@@ -25,7 +25,7 @@ test.describe('Error Recovery Flow', () => {
 
   test('upload invalid file type shows error', async ({ page }) => {
     const token = await getAuthToken();
-    await createJobViaAPI(token, `非法文件上传测试_${Date.now()}`, 'active');
+    await createJobViaAPI(token, `前端开发工程师（非法文件验证）-${Date.now()}`, 'active');
 
     await login(page);
     await page.goto('/dashboard/resumes/upload');
@@ -39,7 +39,7 @@ test.describe('Error Recovery Flow', () => {
 
   test('network error during analysis is handled gracefully', async ({ page }) => {
     const token = await getAuthToken();
-    await createJobViaAPI(token, `分析网络错误测试_${Date.now()}`, 'active');
+    await createJobViaAPI(token, `前端开发工程师（网络异常验证）-${Date.now()}`, 'active');
 
     await login(page);
     await page.route('**/api/v1/analysis?**', (route) => route.abort());
@@ -53,7 +53,7 @@ test.describe('Error Recovery Flow', () => {
 
   test('duplicate job titles remain manageable in job list', async ({ page }) => {
     const token = await getAuthToken();
-    const title = `重复岗位标题_${Date.now()}`;
+    const title = `客户成功经理（重复校验）-${Date.now()}`;
     await createJobViaAPI(token, title, 'draft');
     await createJobViaAPI(token, title, 'draft');
 

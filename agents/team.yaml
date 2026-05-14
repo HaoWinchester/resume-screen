@@ -1,0 +1,111 @@
+version: 1
+
+team:
+  name: product-delivery-agent-team
+  display_name: 产品交付 Agent Team
+  description: >
+    一套可复用的产品交付智能体团队，用于把需求推进为结构化规格、
+    UI 生成提示词、前后端与数据层实现、测试解释、修复闭环、对齐检查、
+    客户预览判断和发布审批。
+  entrypoint: ./orchestrator-agent.md
+  project_profile: ./project-profile.md
+  default_model: gpt-5.3-codex
+  default_reasoning_effort: medium
+
+agents:
+  - name: orchestrator-agent
+    content: ./orchestrator-agent.md
+    model: gpt-5.5
+    reasoning_effort: high
+    owns: 团队路由、状态摘要、上下游交接、继续/修复/阻断/验收决策
+
+  - name: spec-agent
+    content: ./spec-agent.md
+    model: gpt-5.4
+    reasoning_effort: high
+    owns: 需求澄清、功能切片、用户场景、验收标准
+
+  - name: ui-agent
+    content: ./ui-agent.md
+    model: gpt-5.4
+    reasoning_effort: high
+    owns: UI 生成提示词、设计反馈整理、设计阶段交接
+
+  - name: frontend-agent
+    content: ./frontend-agent.md
+    model: gpt-5.3-codex
+    reasoning_effort: high
+    owns: 前端实现、页面状态、客户端交互、浏览器验证建议
+
+  - name: backend-agent
+    content: ./backend-agent.md
+    model: gpt-5.3-codex
+    reasoning_effort: high
+    owns: API 契约、输入校验、服务逻辑、异步状态语义
+
+  - name: database-agent
+    content: ./database-agent.md
+    model: gpt-5.3-codex
+    reasoning_effort: high
+    owns: 数据模型、migration、持久化兼容、seed/fixture
+
+  - name: test-agent
+    content: ./test-agent.md
+    model: gpt-5.4
+    reasoning_effort: medium
+    owns: 测试结果解释、失败归因、重复失败识别、修复路由
+
+  - name: fix-agent
+    content: ./fix-agent.md
+    model: gpt-5.3-codex
+    reasoning_effort: high
+    owns: 最小修复、根因定位、重复失败处理、修复计划
+
+  - name: monitor-agent
+    content: ./monitor-agent.md
+    model: gpt-5.4
+    reasoning_effort: high
+    owns: spec/UI/code/data 对齐检查、偏航 finding 输出
+
+  - name: acceptance-agent
+    content: ./acceptance-agent.md
+    model: gpt-5.4
+    reasoning_effort: medium
+    owns: 客户预览准备度、最终预览入口、验收阻断项
+
+  - name: deploy-agent
+    content: ./deploy-agent.md
+    model: gpt-5.4
+    reasoning_effort: medium
+    owns: 发布审批、部署阻断项、目标环境判断
+
+  - name: legacy-dev-agent
+    content: ./legacy-dev-agent.md
+    model: gpt-5.3-codex
+    reasoning_effort: medium
+    owns: 兼容旧版单开发 agent 流程
+
+handoffs:
+  default_flow:
+    - orchestrator-agent
+    - spec-agent
+    - ui-agent
+    - frontend-agent
+    - backend-agent
+    - database-agent
+    - test-agent
+    - monitor-agent
+    - acceptance-agent
+    - deploy-agent
+  failure_flow:
+    - test-agent
+    - fix-agent
+    - test-agent
+    - monitor-agent
+  no_ui_flow:
+    - orchestrator-agent
+    - spec-agent
+    - backend-agent
+    - database-agent
+    - test-agent
+    - monitor-agent

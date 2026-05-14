@@ -13,7 +13,7 @@ test.describe('Closed Job Flow', () => {
 
   test('closed job cannot accept new resume uploads', async ({ page, request }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `关闭后禁止上传_${Date.now()}`, 'closed');
+    const job = await createJobViaAPI(token, `测试开发工程师（关闭后禁止上传）-${Date.now()}`, 'closed');
 
     await login(page);
     await page.goto('/dashboard/resumes/upload');
@@ -31,7 +31,7 @@ test.describe('Closed Job Flow', () => {
 
   test('closed job analysis results remain accessible', async ({ page, request }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `关闭岗位分析可见_${Date.now()}`, 'active');
+    const job = await createJobViaAPI(token, `数据分析师（关闭后分析可见）-${Date.now()}`, 'active');
     await uploadSampleResume(request, token, job.id);
     const [analysis] = await waitForCompletedAnalysis(request, token, job.id);
     await closeJobViaAPI(token, job.id);
@@ -45,7 +45,7 @@ test.describe('Closed Job Flow', () => {
 
   test('closed job can be copied to create a new draft', async ({ page }) => {
     const token = await getAuthToken();
-    const job = await createJobViaAPI(token, `关闭岗位复制_${Date.now()}`, 'closed');
+    const job = await createJobViaAPI(token, `Java 后端工程师（关闭岗位复制）-${Date.now()}`, 'closed');
 
     await login(page);
     await page.goto('/dashboard/jobs');

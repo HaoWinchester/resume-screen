@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Table,
@@ -30,6 +30,7 @@ import {
   deleteResume,
   downloadResumeFile,
   retryResumeParse,
+  retryPendingResumes,
 } from '@/lib/api/resume';
 import { fetchJobRequirements } from '@/lib/api/job';
 import type { ResumeListItem, ParseStatus } from '@/types/resume';
@@ -37,59 +38,33 @@ import type { JobRequirementListItem } from '@/types/job';
 
 const { Title } = Typography;
 const { Option } = Select;
+const ALL_JOBS_VALUE = 'all';
 
 export default function ResumesPage() {
   const router = useRouter();
   const [resumes, setResumes] = useState<ResumeListItem[]>([]);
   const [jobs, setJobs] = useState<JobRequirementListItem[]>([]);
-  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [selectedJobId, setSelectedJobId] = useState<string>(ALL_JOBS_VALUE);
   const [statusFilter, setStatusFilter] = useState<ParseStatus | 'all'>('all');
   const [loading, setLoading] = useState(false);
+  const [batchRetrying, setBatchRetrying] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 20, total: 0 });
-
-  useEffect(() => {
-    loadJobs();
-  }, []);
-
-  useEffect(() => {
-    if (selectedJobId) {
-      void loadResumes();
-    }
-  }, [selectedJobId, statusFilter, pagination.current, pagination.pageSize]);
+  const { current: currentPage, pageSize } = pagination;
 
   const activeProcessingCount = resumes.filter(
     (resume) => resume.parse_status === 'pending' || resume.parse_status === 'parsing'
   ).length;
 
-  useEffect(() => {
-    if (!selectedJobId || activeProcessingCount === 0) {
-      return;
-    }
-
-    const timer = window.setInterval(() => {
-      void loadResumes({ silent: true });
-    }, 3000);
-
-    return () => {
-      window.clearInterval(timer);
-    };
-  }, [selectedJobId, activeProcessingCount, loadResumes]);
-
-  const loadJobs = async () => {
+  const loadJobs = useCallback(async () => {
     try {
       const response = await fetchJobRequirements({ status: 'active', per_page: 100 });
       setJobs(response.items);
-      if (response.items.length > 0 && !selectedJobId) {
-        setSelectedJobId(response.items[0].id);
-      }
     } catch (error) {
       message.error('加载岗位列表失败');
     }
-  };
+  }, []);
 
-  async function loadResumes(options?: { silent?: boolean }) {
-    if (!selectedJobId) return;
-
+  const loadResumes = useCallback(async (options?: { silent?: boolean }) => {
     const silent = options?.silent ?? false;
     if (!silent) {
       setLoading(true);
@@ -97,10 +72,12 @@ export default function ResumesPage() {
 
     try {
       const params: any = {
-        job_requirement_id: selectedJobId,
-        page: pagination.current,
-        per_page: pagination.pageSize,
+        page: currentPage,
+        per_page: pageSize,
       };
+      if (selectedJobId !== ALL_JOBS_VALUE) {
+        params.job_requirement_id = selectedJobId;
+      }
       if (statusFilter !== 'all') {
         params.parse_status = statusFilter;
       }
@@ -121,7 +98,29 @@ export default function ResumesPage() {
         setLoading(false);
       }
     }
-  }
+  }, [currentPage, pageSize, selectedJobId, statusFilter]);
+
+  useEffect(() => {
+    void loadJobs();
+  }, [loadJobs]);
+
+  useEffect(() => {
+    void loadResumes();
+  }, [loadResumes]);
+
+  useEffect(() => {
+    if (activeProcessingCount === 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      void loadResumes({ silent: true });
+    }, 3000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [activeProcessingCount, loadResumes]);
 
   const handleTableChange: TableProps<ResumeListItem>['onChange'] = (newPagination) => {
     setPagination({
@@ -148,6 +147,21 @@ export default function ResumesPage() {
       void loadResumes({ silent: true });
     } catch (error) {
       message.error('重新解析失败');
+    }
+  };
+
+  const handleRetryPending = async () => {
+    setBatchRetrying(true);
+    try {
+      const response = await retryPendingResumes(
+        selectedJobId === ALL_JOBS_VALUE ? undefined : { job_requirement_id: selectedJobId }
+      );
+      message.success(response.message || `已重新提交 ${response.retried} 份简历解析`);
+      void loadResumes({ silent: true });
+    } catch (error) {
+      message.error('批量重新解析失败');
+    } finally {
+      setBatchRetrying(false);
     }
   };
 
@@ -249,6 +263,14 @@ export default function ResumesPage() {
       render: (_, record) => renderCandidateName(record),
     },
     {
+      title: '所属岗位',
+      dataIndex: 'job_title',
+      key: 'job_title',
+      width: 180,
+      ellipsis: true,
+      render: (value: string) => value || <span className="text-gray-400">未关联岗位</span>,
+    },
+    {
       title: '邮箱',
       dataIndex: 'candidate_email',
       key: 'candidate_email',
@@ -268,9 +290,9 @@ export default function ResumesPage() {
       render: (status: ParseStatus) => getParseStatusTag(status),
     },
     {
-      title: '上传时间',
-      dataIndex: 'created_at',
-      key: 'created_at',
+      title: '最近处理',
+      dataIndex: 'updated_at',
+      key: 'updated_at',
       width: 180,
       render: (date: string) => new Date(date).toLocaleString('zh-CN'),
     },
@@ -320,6 +342,7 @@ export default function ResumesPage() {
               style={{ width: '100%' }}
               placeholder="请选择岗位需求"
             >
+              <Option value={ALL_JOBS_VALUE}>全部岗位</Option>
               {jobs.map((job) => (
                 <Option key={job.id} value={job.id}>
                   {job.title}
@@ -343,24 +366,26 @@ export default function ResumesPage() {
             type="info"
             showIcon
             message={`当前有 ${activeProcessingCount} 份简历正在等待解析或解析中，列表每 3 秒自动刷新一次。`}
+            action={
+              <Button size="small" icon={<ReloadOutlined />} loading={batchRetrying} onClick={handleRetryPending}>
+                一键重新解析
+              </Button>
+            }
           />
         )}
 
-        {selectedJobId ? (
-          <Table
-            columns={columns}
-            dataSource={resumes}
-            rowKey="id"
-            loading={loading}
-            pagination={pagination}
-            onChange={handleTableChange}
-            scroll={{ x: 800 }}
-          />
-        ) : (
-          <div className="text-center py-12 text-gray-500">
-            请先选择一个岗位需求
-          </div>
-        )}
+        <Table
+          columns={columns}
+          dataSource={resumes}
+          rowKey="id"
+          loading={loading}
+          pagination={pagination}
+          onChange={handleTableChange}
+          scroll={{ x: 980 }}
+          locale={{
+            emptyText: selectedJobId === ALL_JOBS_VALUE ? '全部岗位下暂无简历' : '当前岗位下暂无简历',
+          }}
+        />
       </Card>
     </div>
   );

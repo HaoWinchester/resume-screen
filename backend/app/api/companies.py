@@ -8,6 +8,7 @@ from app.api.deps import get_current_user, require_admin, User
 from app.services.company_service import CompanyService
 from app.schemas.company import (
     CompanyResponse,
+    CompanyUpdateRequest,
     MemberListResponse,
     MemberItem,
     InviteRequest,
@@ -40,6 +41,58 @@ async def get_company_info(
         "id": company.id,
         "name": company.name,
         "industry": company.industry,
+        "contact_name": company.contact_name,
+        "contact_phone": company.contact_phone,
+        "contact_email": company.contact_email,
+        "created_at": company.created_at
+    }
+
+
+@router.patch("/me", response_model=CompanyResponse)
+async def update_company_info(
+    data: CompanyUpdateRequest,
+    current_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db)
+):
+    """更新公司基础信息（管理员）"""
+    from app.models import Company
+
+    result = await db.execute(
+        select(Company).where(Company.id == current_user.company_id)
+    )
+    company = result.scalar_one_or_none()
+
+    if not company:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": {"code": "NOT_FOUND", "message": "公司不存在"}}
+        )
+
+    duplicate_result = await db.execute(
+        select(Company).where(Company.name == data.name, Company.id != company.id)
+    )
+    if duplicate_result.scalar_one_or_none():
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": {"code": "COMPANY_EXISTS", "message": "公司名称已存在"}}
+        )
+
+    company.name = data.name.strip()
+    company.industry = data.industry.strip() if data.industry else None
+    company.contact_name = data.contact_name.strip() if data.contact_name else None
+    company.contact_phone = data.contact_phone.strip() if data.contact_phone else None
+    company.contact_email = str(data.contact_email) if data.contact_email else None
+
+    await db.commit()
+    await db.refresh(company)
+
+    return {
+        "id": company.id,
+        "name": company.name,
+        "industry": company.industry,
+        "contact_name": company.contact_name,
+        "contact_phone": company.contact_phone,
+        "contact_email": company.contact_email,
         "created_at": company.created_at
     }
 

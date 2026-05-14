@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useCallback, useEffect, useMemo, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Card,
@@ -33,10 +33,27 @@ const { Title, Text } = Typography;
 function CompareContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const analysisIds = searchParams.get('ids')?.split(',') || [];
+  const analysisIdsParam = searchParams.get('ids') || '';
+  const analysisIds = useMemo(
+    () => analysisIdsParam.split(',').filter(Boolean),
+    [analysisIdsParam]
+  );
 
   const [loading, setLoading] = useState(true);
   const [candidates, setCandidates] = useState<ComparisonCandidate[]>([]);
+
+  const loadComparison = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await fetchCandidateComparison(analysisIds);
+      setCandidates(response.candidates);
+    } catch (error) {
+      message.error('加载对比数据失败');
+      router.push('/dashboard/analysis');
+    } finally {
+      setLoading(false);
+    }
+  }, [analysisIds, router]);
 
   useEffect(() => {
     if (analysisIds.length < 2) {
@@ -49,21 +66,8 @@ function CompareContent() {
       router.push('/dashboard/analysis');
       return;
     }
-    loadComparison();
-  }, [analysisIds]);
-
-  const loadComparison = async () => {
-    setLoading(true);
-    try {
-      const response = await fetchCandidateComparison(analysisIds);
-      setCandidates(response.candidates);
-    } catch (error) {
-      message.error('加载对比数据失败');
-      router.push('/dashboard/analysis');
-    } finally {
-      setLoading(false);
-    }
-  };
+    void loadComparison();
+  }, [analysisIds.length, loadComparison, router]);
 
   const getDimensionName = (dimension: DimensionType): string => {
     const names = {

@@ -1,4 +1,7 @@
 import re
+import asyncio
+import shutil
+import subprocess
 from typing import Optional
 from pathlib import Path
 import fitz  # PyMuPDF
@@ -116,35 +119,142 @@ class ResumeParser:
         "电话", "手机", "邮箱", "电子邮箱", "性别", "年龄", "男", "女", "求职意向"
     }
 
+    def __init__(self) -> None:
+        self.last_text_extractor = "unknown"
+
+    def _normalize_extracted_text(self, text: str) -> str:
+        """Normalize text from CLI/Python extractors while keeping readable line breaks."""
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        text = re.sub(r"[\u0000-\u0008\u000b\u000c\u000e-\u001f]", "", text)
+        lines = [re.sub(r"[ \t]+", " ", line).strip() for line in text.split("\n")]
+
+        normalized: list[str] = []
+        blank_seen = False
+        for line in lines:
+            if not line:
+                if not blank_seen:
+                    normalized.append("")
+                blank_seen = True
+                continue
+            normalized.append(line)
+            blank_seen = False
+
+        return "\n".join(normalized).strip()
+
+    async def _run_cli_text_extractor(self, command: list[str], extractor_name: str) -> str | None:
+        """Run a local CLI extractor and return normalized stdout when useful."""
+        executable = command[0]
+        if not shutil.which(executable):
+            return None
+
+        def _run() -> subprocess.CompletedProcess[str]:
+            return subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                check=False,
+            )
+
+        try:
+            result = await asyncio.to_thread(_run)
+        except Exception:
+            return None
+
+        if result.returncode != 0:
+            return None
+
+        text = self._normalize_extracted_text(result.stdout or "")
+        if len(text) < 20:
+            return None
+
+        self.last_text_extractor = extractor_name
+        return text
+
     async def parse_pdf(self, file_path: str) -> str:
         """Extract text from PDF file."""
+        cli_text = await self._run_cli_text_extractor(
+            ["pdftotext", "-layout", "-enc", "UTF-8", file_path, "-"],
+            "pdftotext -layout",
+        )
+        if cli_text:
+            return cli_text
+
         try:
             doc = fitz.open(file_path)
             text = ""
             for page in doc:
                 text += page.get_text()
             doc.close()
-            return text
+            self.last_text_extractor = "pymupdf"
+            return self._normalize_extracted_text(text)
         except Exception as e:
             raise ValueError(f"PDF解析失败: {str(e)}")
 
     async def parse_docx(self, file_path: str) -> str:
         """Extract text from DOCX file."""
+        candidates: list[tuple[str, str]] = []
+        for command, extractor_name in [
+            (["pandoc", "-t", "plain", file_path], "pandoc"),
+            (["textutil", "-convert", "txt", "-stdout", file_path], "textutil"),
+        ]:
+            cli_text = await self._run_cli_text_extractor(command, extractor_name)
+            if cli_text:
+                candidates.append((extractor_name, cli_text))
+
         try:
-            doc = Document(file_path)
-            lines: list[str] = []
-
-            for block in self._iter_docx_blocks(doc):
-                if isinstance(block, Paragraph):
-                    paragraph_text = block.text.strip()
-                    if paragraph_text:
-                        lines.append(paragraph_text)
-                elif isinstance(block, Table):
-                    lines.extend(self._extract_docx_table_lines(block))
-
-            return "\n".join(lines) + ("\n" if lines else "")
+            candidates.append(("python-docx", self._parse_docx_with_python(file_path)))
         except Exception as e:
-            raise ValueError(f"DOCX解析失败: {str(e)}")
+            if not candidates:
+                raise ValueError(f"DOCX解析失败: {str(e)}")
+
+        if not candidates:
+            raise ValueError("DOCX解析失败: 未能抽取到有效文本")
+
+        extractor_name, text = max(candidates, key=lambda candidate: self._score_resume_text(candidate[1]))
+        self.last_text_extractor = extractor_name
+        return text
+
+    def _parse_docx_with_python(self, file_path: str) -> str:
+        """Extract DOCX text with python-docx, preserving table row order."""
+        doc = Document(file_path)
+        lines: list[str] = []
+
+        for block in self._iter_docx_blocks(doc):
+            if isinstance(block, Paragraph):
+                paragraph_text = block.text.strip()
+                if paragraph_text:
+                    lines.append(paragraph_text)
+            elif isinstance(block, Table):
+                lines.extend(self._extract_docx_table_lines(block))
+
+        return self._normalize_extracted_text("\n".join(lines) + ("\n" if lines else ""))
+
+    def _score_resume_text(self, text: str) -> int:
+        """Prefer extractor output that produces more useful structured resume fields."""
+        try:
+            data = self.extract_structured_data(text)
+        except Exception:
+            return 0
+
+        score = min(len(text), 5000) // 500
+        for key in ("name", "email", "phone", "gender", "age"):
+            if data.get(key):
+                score += 4
+
+        education = data.get("education") if isinstance(data.get("education"), list) else []
+        for item in education[:3]:
+            if isinstance(item, dict):
+                score += sum(2 for key in ("school", "degree", "major") if item.get(key))
+
+        work_experience = data.get("work_experience") if isinstance(data.get("work_experience"), list) else []
+        for item in work_experience[:3]:
+            if isinstance(item, dict):
+                score += sum(2 for key in ("company", "position", "description") if item.get(key))
+
+        skills = data.get("skills") if isinstance(data.get("skills"), list) else []
+        score += min(len(skills), 10)
+        return score
 
     def _iter_docx_blocks(self, parent: DocxDocument | _Cell):
         """Yield paragraphs and tables in the order they appear in a DOCX."""
@@ -194,9 +304,24 @@ class ResumeParser:
             image = Image.open(file_path)
             # Use Chinese and English
             text = pytesseract.image_to_string(image, lang='chi_sim+eng')
-            return text
+            self.last_text_extractor = "tesseract"
+            return self._normalize_extracted_text(text)
         except Exception as e:
             raise ValueError(f"图片解析失败: {str(e)}")
+
+    async def parse_doc(self, file_path: str) -> str:
+        """Extract text from legacy DOC using available local CLI tools."""
+        for command, extractor_name in [
+            (["textutil", "-convert", "txt", "-stdout", file_path], "textutil"),
+            (["antiword", file_path], "antiword"),
+            (["catdoc", file_path], "catdoc"),
+            (["pandoc", "-t", "plain", file_path], "pandoc"),
+        ]:
+            cli_text = await self._run_cli_text_extractor(command, extractor_name)
+            if cli_text:
+                return cli_text
+
+        raise ValueError("旧版 .doc 格式解析失败：本机缺少可用的 textutil/antiword/catdoc/pandoc 解析工具")
 
     async def parse_file(self, file_path: str, file_type: str) -> str:
         """Parse file based on type and return extracted text."""
@@ -207,11 +332,7 @@ class ResumeParser:
         elif file_type in ["jpg", "png"]:
             return await self.parse_image(file_path)
         elif file_type == "doc":
-            # Legacy .doc format - not well supported, try docx
-            try:
-                return await self.parse_docx(file_path)
-            except Exception:
-                raise ValueError(f"不支持旧版 .doc 格式，请转换为 .docx")
+            return await self.parse_doc(file_path)
         else:
             raise ValueError(f"不支持的文件类型: {file_type}")
 
@@ -228,7 +349,8 @@ class ResumeParser:
             "work_experience": self._extract_work_experience(raw_text),
             "skills": self._extract_skills(raw_text),
             "projects": self._extract_projects(raw_text),
-            "raw_text": raw_text
+            "raw_text": raw_text,
+            "text_extractor": self.last_text_extractor,
         }
         return result
 

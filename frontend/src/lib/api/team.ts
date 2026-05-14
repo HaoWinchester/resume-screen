@@ -3,6 +3,7 @@ import type {
   Company,
   MemberListResponse,
   InviteMemberRequest,
+  UpdateCompanyRequest,
   UpdateRoleRequest,
   TeamMember,
 } from '@/types/team';
@@ -12,6 +13,11 @@ import type {
  */
 export async function fetchCompanyInfo(): Promise<Company> {
   const response = await apiClient.get<Company>('/companies/me');
+  return response.data;
+}
+
+export async function updateCompanyInfo(data: UpdateCompanyRequest): Promise<Company> {
+  const response = await apiClient.patch<Company>('/companies/me', data);
   return response.data;
 }
 

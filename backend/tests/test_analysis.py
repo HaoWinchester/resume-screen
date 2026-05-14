@@ -42,6 +42,64 @@ class TestListAnalysisResults:
         assert "statistics" in body
         assert body["total"] >= 1
 
+    async def test_list_analysis_paginates_candidates_not_dimension_rows(
+        self,
+        async_client: AsyncClient,
+        auth_headers: dict,
+        db_session,
+        sample_analysis: AnalysisResult,
+        sample_job: JobRequirement,
+        test_user,
+    ):
+        for index in range(3):
+            resume = Resume(
+                job_requirement_id=sample_job.id,
+                file_name=f"candidate-{index}.pdf",
+                file_path=f"/tmp/candidate-{index}.pdf",
+                file_type=ResumeFileType.PDF,
+                file_size=1024,
+                parse_status=ParseStatus.SUCCESS,
+                candidate_name=f"候选人{index}",
+                uploaded_by=test_user.id,
+            )
+            db_session.add(resume)
+            await db_session.flush()
+
+            analysis = AnalysisResult(
+                resume_id=resume.id,
+                job_requirement_id=sample_job.id,
+                overall_score=80 + index,
+                recommendation=RecommendationLevel.RECOMMENDED,
+                analysis_status=AnalysisStatus.COMPLETED,
+                analyzed_at=datetime.now(timezone.utc),
+            )
+            db_session.add(analysis)
+            await db_session.flush()
+
+            for dimension in Dimension:
+                db_session.add(
+                    DimensionScore(
+                        analysis_id=analysis.id,
+                        dimension=dimension,
+                        score=80,
+                        weight="medium",
+                        analysis_text="维度说明",
+                        match_details=None,
+                    )
+                )
+
+        await db_session.commit()
+
+        resp = await async_client.get(
+            f"/api/v1/analysis?job_requirement_id={sample_job.id}&per_page=10",
+            headers=auth_headers,
+        )
+
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["total"] == 4
+        assert len(body["items"]) == 4
+
     async def test_list_analysis_statistics(
         self,
         async_client: AsyncClient,

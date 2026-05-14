@@ -34,6 +34,7 @@ export interface AnalysisListItem {
   id: string;
   resume_id: string;
   candidate_name: string | null;
+  candidate_email?: string | null;
   overall_score: number;
   recommendation: RecommendationLevel;
   recommendation_reason: string | null;

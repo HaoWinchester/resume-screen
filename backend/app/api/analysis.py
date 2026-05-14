@@ -76,17 +76,6 @@ async def list_analysis_results(
             detail={"error": {"code": "NOT_FOUND", "message": "岗位需求不存在"}}
         )
 
-    # Build query
-    query = (
-        select(AnalysisResult, Resume, DimensionScore)
-        .join(Resume, AnalysisResult.resume_id == Resume.id)
-        .outerjoin(DimensionScore, AnalysisResult.id == DimensionScore.analysis_id)
-        .where(AnalysisResult.job_requirement_id == job_requirement_id)
-    )
-
-    if recommendation:
-        query = query.where(AnalysisResult.recommendation == recommendation)
-
     # Get statistics
     total_resumes_result = await db.execute(
         select(func.count()).select_from(Resume).where(
@@ -175,35 +164,37 @@ async def list_analysis_results(
     total_result = await db.execute(count_query)
     total = total_result.scalar() or 0
 
-    # Get paginated results with sorting
+    # Paginate by analysis result first. Do not apply limit after joining
+    # dimension_scores, otherwise one candidate with 5 dimensions consumes 5 rows.
+    page_query = (
+        select(AnalysisResult, Resume)
+        .join(Resume, AnalysisResult.resume_id == Resume.id)
+        .where(AnalysisResult.job_requirement_id == job_requirement_id)
+    )
+    if recommendation:
+        page_query = page_query.where(AnalysisResult.recommendation == recommendation)
+
     if sort_order == "desc":
-        query = query.order_by(AnalysisResult.overall_score.desc())
+        page_query = page_query.order_by(AnalysisResult.overall_score.desc(), AnalysisResult.created_at.desc())
     else:
-        query = query.order_by(AnalysisResult.overall_score.asc())
+        page_query = page_query.order_by(AnalysisResult.overall_score.asc(), AnalysisResult.created_at.desc())
 
-    query = query.offset((page - 1) * per_page).limit(per_page)
-    result = await db.execute(query)
-    rows = result.all()
+    page_query = page_query.offset((page - 1) * per_page).limit(per_page)
+    result = await db.execute(page_query)
+    paged_rows = result.all()
+    analysis_ids = [analysis.id for analysis, _ in paged_rows]
 
-    # Group results by analysis
-    analysis_map = {}
-    for row in rows:
-        analysis, resume, dimension = row
-        if analysis.id not in analysis_map:
-            analysis_map[analysis.id] = {
-                "analysis": analysis,
-                "resume": resume,
-                "dimensions": []
-            }
-        if dimension:
-            analysis_map[analysis.id]["dimensions"].append(dimension)
+    dimension_map: dict[uuid.UUID, list[DimensionScore]] = {analysis_id: [] for analysis_id in analysis_ids}
+    if analysis_ids:
+        dimension_result = await db.execute(
+            select(DimensionScore).where(DimensionScore.analysis_id.in_(analysis_ids))
+        )
+        for dimension in dimension_result.scalars().all():
+            dimension_map.setdefault(dimension.analysis_id, []).append(dimension)
 
     items = []
-    for data in analysis_map.values():
-        analysis = data["analysis"]
-        resume = data["resume"]
-        dimensions = data["dimensions"]
-
+    for analysis, resume in paged_rows:
+        dimensions = dimension_map.get(analysis.id, [])
         dimension_items = [
             DimensionScoreItem(
                 dimension=d.dimension.value,
@@ -218,6 +209,7 @@ async def list_analysis_results(
             id=analysis.id,
             resume_id=resume.id,
             candidate_name=_display_candidate_name(resume),
+            candidate_email=get_resume_basic_info(resume).get("email"),
             overall_score=float(analysis.overall_score),
             recommendation=analysis.recommendation.value,
             recommendation_reason=analysis.recommendation_reason,

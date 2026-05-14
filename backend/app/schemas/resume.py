@@ -32,16 +32,21 @@ class ResumeUploadResponse(BaseModel):
 
 class ResumeListItem(BaseModel):
     id: uuid.UUID
+    job_requirement_id: uuid.UUID
+    job_title: str
     file_name: str
     parse_status: str
     candidate_name: Optional[str] = None
     candidate_email: Optional[str] = None
     candidate_phone: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
 
 
 class ResumeDetail(BaseModel):
     id: uuid.UUID
+    job_requirement_id: uuid.UUID
+    job_title: str
     file_name: str
     file_type: str
     file_size: int
@@ -52,6 +57,7 @@ class ResumeDetail(BaseModel):
     candidate_email: Optional[str] = None
     candidate_phone: Optional[str] = None
     created_at: datetime
+    updated_at: datetime
     file_url: str
 
 

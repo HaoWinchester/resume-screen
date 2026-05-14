@@ -1,6 +1,7 @@
 """Tests for the ResumeParser service."""
 
 import json
+import subprocess
 
 import pytest
 from docx import Document
@@ -125,6 +126,22 @@ class TestExtractSkills:
 # ---------------------------------------------------------------------------
 
 class TestParseDocx:
+    async def test_parse_pdf_prefers_cli_extractor(self, monkeypatch):
+        parser = ResumeParser()
+
+        monkeypatch.setattr("app.services.resume_parser.shutil.which", lambda command: f"/usr/bin/{command}")
+
+        def fake_run(command, **kwargs):
+            assert command[:2] == ["pdftotext", "-layout"]
+            return subprocess.CompletedProcess(command, 0, stdout="张三\n电话：13800138000\n技能：Python React Docker", stderr="")
+
+        monkeypatch.setattr("app.services.resume_parser.subprocess.run", fake_run)
+
+        text = await parser.parse_pdf("/tmp/resume.pdf")
+
+        assert "张三" in text
+        assert parser.last_text_extractor == "pdftotext -layout"
+
     async def test_parse_docx_preserves_table_order(self, tmp_path):
         parser = ResumeParser()
         doc = Document()

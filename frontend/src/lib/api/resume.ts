@@ -42,7 +42,7 @@ export async function uploadResumes(
  * 获取简历列表
  */
 export async function fetchResumes(params: {
-  job_requirement_id: string;
+  job_requirement_id?: string;
   parse_status?: string;
   page?: number;
   per_page?: number;
@@ -71,6 +71,18 @@ export async function deleteResume(id: string): Promise<void> {
  */
 export async function retryResumeParse(id: string): Promise<void> {
   await apiClient.post(`/resumes/${id}/retry`);
+}
+
+/**
+ * 批量重新解析等待中/解析中的简历
+ */
+export async function retryPendingResumes(params?: { job_requirement_id?: string }): Promise<{
+  retried: number;
+  scope: string;
+  message: string;
+}> {
+  const response = await apiClient.post('/resumes/retry-pending', undefined, { params });
+  return response.data;
 }
 
 /**
